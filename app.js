@@ -38,6 +38,17 @@ const G_PER_KG_SUGGERITO = {
   "Molto intenso": 1.8
 };
 
+// Grassi come quota delle calorie totali. I LARN indicano 20–35% per l'adulto:
+// 27% sta in mezzo e lascia ai carboidrati una quota di norma sostenibile.
+// Anche questo è solo un punto di partenza modificabile.
+const PERC_GRASSI_SUGGERITA = 27;
+const PERC_GRASSI_MIN = 15;
+const PERC_GRASSI_MAX = 45;
+
+// Calorie per grammo (fattori di Atwater): servono a passare dai grammi di un
+// macronutriente alle calorie e viceversa.
+const KCAL_PER_G = { proteine: 4, grassi: 9, carboidrati: 4 };
+
 // ---------- Stato ----------
 
 const MAX_GIORNATE = 7;
@@ -65,13 +76,15 @@ function nomeGiornataLibero() {
 
 function creaStatoVuoto() {
   return {
-    obiettivo: null,          // kcal obiettivo del giorno (null = nessuno)
-    obiettivoProteine: null,  // grammi di proteine obiettivo (null = nessuno)
+    obiettivo: null,             // kcal obiettivo del giorno (null = nessuno)
+    obiettivoProteine: null,     // grammi di proteine obiettivo (null = nessuno)
+    obiettivoGrassi: null,       // grammi di grassi obiettivo (null = nessuno)
+    obiettivoCarboidrati: null,  // grammi di carboidrati obiettivo (null = nessuno)
     // Gli obiettivi sono del paziente, quindi valgono per tutte le giornate;
     // le giornate sono varianti dello stesso piano, fino a MAX_GIORNATE.
     giornate: [creaGiornata("Giorno 1")],
     attiva: 0,
-    profilo: { sesso: "", eta: "", peso: "", altezza: "", attivita: "Moderato", correzione: "", gPerKg: "" }
+    profilo: { sesso: "", eta: "", peso: "", altezza: "", attivita: "Moderato", correzione: "", gPerKg: "", percGrassi: "" }
   };
 }
 
@@ -108,6 +121,8 @@ const temaNotteBtn = el("tema-notte-btn");
 
 const obiettivoInput = el("obiettivo-input");
 const obiettivoProtInput = el("obiettivo-prot-input");
+const obiettivoFatInput = el("obiettivo-fat-input");
+const obiettivoCarbInput = el("obiettivo-carb-input");
 const fabbisognoToggle = el("fabbisogno-toggle");
 const fabbisognoBox = el("fabbisogno-box");
 const sessoGruppo = el("sesso-gruppo");
@@ -118,6 +133,8 @@ const attivitaSelect = el("attivita-select");
 const correzioneInput = el("deficit-input");
 const gkgInput = el("gkg-input");
 const gkgNota = el("gkg-nota");
+const percGrassiInput = el("perc-grassi-input");
+const percGrassiNota = el("perc-grassi-nota");
 const fabbisognoEsito = el("fabbisogno-esito");
 
 const foodInput = el("food-input");
@@ -275,6 +292,8 @@ function caricaStato() {
   const nuovo = creaStatoVuoto();
   nuovo.obiettivo = Number(salvato.obiettivo) > 0 ? Number(salvato.obiettivo) : null;
   nuovo.obiettivoProteine = Number(salvato.obiettivoProteine) > 0 ? Number(salvato.obiettivoProteine) : null;
+  nuovo.obiettivoGrassi = Number(salvato.obiettivoGrassi) > 0 ? Number(salvato.obiettivoGrassi) : null;
+  nuovo.obiettivoCarboidrati = Number(salvato.obiettivoCarboidrati) > 0 ? Number(salvato.obiettivoCarboidrati) : null;
   if (salvato.profilo && typeof salvato.profilo === "object") {
     Object.assign(nuovo.profilo, salvato.profilo);
   }
@@ -793,6 +812,23 @@ function pastoHtml(pasto, kcalGiorno) {
   `;
 }
 
+// Riga "X / Y g" con barra, per un macronutriente che ha un obiettivo.
+// Restituisce stringa vuota se l'obiettivo non è impostato, così chi la chiama
+// può inserirla senza controlli.
+function bloccoObiettivoMacro(nome, valore, meta, classeBarra) {
+  if (!(meta > 0)) return "";
+  const percentuale = Math.min(100, Math.round((valore / meta) * 100));
+  const scarto = round1(Math.abs(meta - valore));
+  const sforato = valore > meta;
+  return `
+    <div class="totali-riga-obiettivo">
+      <span>${nome} <strong>${round1(valore)}</strong> / ${round1(meta)} g</span>
+      <span>${sforato ? `${scarto} g oltre` : `restano ${scarto} g`}</span>
+    </div>
+    <div class="barra-obiettivo ${classeBarra}"><span style="width:${percentuale}%"></span></div>
+  `;
+}
+
 function totaliHtml(t) {
   const macro = ripartizioneMacro(t);
   const obiettivo = state.obiettivo;
@@ -827,6 +863,12 @@ function totaliHtml(t) {
     `;
   }
 
+  // Grassi e carboidrati si leggono come una scorta da non sforare, più che
+  // come una soglia da raggiungere: il testo dice quanto ne resta, e la barra
+  // non diventa rossa perché superarli di poco non è un errore.
+  const bloccoGrassi = bloccoObiettivoMacro("Grassi", t.grassi, state.obiettivoGrassi, "barra-grassi");
+  const bloccoCarboidrati = bloccoObiettivoMacro("Carboidrati", t.carboidrati, state.obiettivoCarboidrati, "barra-carboidrati");
+
   return `
     <div class="totali">
       <div class="totali-testata">
@@ -835,6 +877,8 @@ function totaliHtml(t) {
       </div>
       ${barraObiettivo}
       ${bloccoProteine}
+      ${bloccoGrassi}
+      ${bloccoCarboidrati}
       <div class="macro-barra">
         <i class="m-prot" style="width:${macro.prot}%"></i><i class="m-fat" style="width:${macro.fat}%"></i><i class="m-carb" style="width:${macro.carb}%"></i>
       </div>
@@ -866,6 +910,18 @@ function renderBarraTotale(t) {
       ? `<span class="bt-residuo bt-residuo-prot">${scarto} g prot.</span>`
       : `<span class="bt-residuo bt-residuo-prot obiettivo-raggiunto">prot. ✓</span>`;
   }
+  // Grassi e carboidrati: solo il residuo, con l'iniziale del macronutriente.
+  // Sono gli ultimi arrivati nella barra, e su schermo stretto sono i primi a
+  // sparire (regola in CSS) per non far crescere la barra su due righe.
+  const residuoMacro = (meta, valore, sigla, classe) => {
+    if (!(meta > 0)) return "";
+    const scarto = round1(meta - valore);
+    return scarto >= 0
+      ? `<span class="bt-residuo ${classe}">${scarto} g ${sigla}</span>`
+      : `<span class="bt-residuo ${classe} sforato">+${Math.abs(scarto)} g ${sigla}</span>`;
+  };
+  const residuoFat = residuoMacro(state.obiettivoGrassi, t.grassi, "gr.", "bt-residuo-fat");
+  const residuoCarb = residuoMacro(state.obiettivoCarboidrati, t.carboidrati, "carb.", "bt-residuo-carb");
   const nomeGiornata = state.giornate.length > 1
     ? `<span class="bt-giornata">${escapeHtml(giornataCorrente().nome)}</span>`
     : "";
@@ -875,6 +931,8 @@ function renderBarraTotale(t) {
     <span class="bt-macro">${round1(t.proteine)} P · ${round1(t.grassi)} G · ${round1(t.carboidrati)} C</span>
     ${residuo}
     ${residuoProt}
+    ${residuoFat}
+    ${residuoCarb}
   `;
   barraTotale.classList.remove("hidden");
 }
@@ -1142,14 +1200,17 @@ function testoPasto(pasto, pasti) {
   return `${pasto.toUpperCase()} — ${arrotonda(t.kcal)} kcal\n${righe.join("\n")}`;
 }
 
-// Riga dei macronutrienti, con l'obiettivo proteine scritto come "93,3/109 g".
+// Riga dei macronutrienti, con l'obiettivo scritto come "93,3/109 g" per i
+// macronutrienti che ne hanno uno.
 // Le percentuali tra parentesi restano quelle della ripartizione energetica.
 function rigaMacroTesto(t) {
   const macro = ripartizioneMacro(t);
-  const proteineTxt = state.obiettivoProteine > 0
-    ? `${round1(t.proteine)}/${round1(state.obiettivoProteine)} g`
-    : `${round1(t.proteine)} g`;
-  return `Proteine ${proteineTxt} (${macro.prot}%) · Grassi ${round1(t.grassi)} g (${macro.fat}%) · Carboidrati ${round1(t.carboidrati)} g (${macro.carb}%)`;
+  const conMeta = (valore, meta) => meta > 0
+    ? `${round1(valore)}/${round1(meta)} g`
+    : `${round1(valore)} g`;
+  return `Proteine ${conMeta(t.proteine, state.obiettivoProteine)} (${macro.prot}%)` +
+    ` · Grassi ${conMeta(t.grassi, state.obiettivoGrassi)} (${macro.fat}%)` +
+    ` · Carboidrati ${conMeta(t.carboidrati, state.obiettivoCarboidrati)} (${macro.carb}%)`;
 }
 
 function testoDiGiornata(giornata, conNome) {
@@ -1278,8 +1339,10 @@ function stampa(ambito) {
 function intestazioneStampa(titolo) {
   const obiettivi = [
     state.obiettivo > 0 ? `${arrotonda(state.obiettivo)} kcal` : "",
-    state.obiettivoProteine > 0 ? `${round1(state.obiettivoProteine)} g di proteine` : ""
-  ].filter(Boolean).join(" e ");
+    state.obiettivoProteine > 0 ? `${round1(state.obiettivoProteine)} g di proteine` : "",
+    state.obiettivoGrassi > 0 ? `${round1(state.obiettivoGrassi)} g di grassi` : "",
+    state.obiettivoCarboidrati > 0 ? `${round1(state.obiettivoCarboidrati)} g di carboidrati` : ""
+  ].filter(Boolean).join(", ");
   const obiettivo = obiettivi ? ` · Obiettivo: ${obiettivi}` : "";
   return `
     <h1 class="stampa-titolo">${titolo}</h1>
@@ -1372,6 +1435,7 @@ function leggiProfiloDaiCampi() {
   state.profilo.attivita = attivitaSelect.value;
   state.profilo.correzione = correzioneInput.value;
   state.profilo.gPerKg = gkgInput.value;
+  state.profilo.percGrassi = percGrassiInput.value;
 }
 
 // Grammi di proteine per kg usati nel calcolo: quelli digitati, altrimenti il
@@ -1380,6 +1444,15 @@ function gPerKgEffettivo(p) {
   const digitato = parseFloat(String(p.gPerKg).replace(",", "."));
   if (digitato > 0) return digitato;
   return G_PER_KG_SUGGERITO[p.attivita] || 1.4;
+}
+
+// Quota di calorie dai grassi usata nel calcolo: quella digitata (tenuta dentro
+// un intervallo ragionevole, perché un 5% o un 90% battuti per errore darebbero
+// una ripartizione senza senso), altrimenti quella suggerita.
+function percGrassiEffettiva(p) {
+  const digitata = parseFloat(String(p.percGrassi).replace(",", "."));
+  if (!(digitata > 0)) return PERC_GRASSI_SUGGERITA;
+  return Math.min(PERC_GRASSI_MAX, Math.max(PERC_GRASSI_MIN, digitata));
 }
 
 function calcolaFabbisogno(p) {
@@ -1406,9 +1479,32 @@ function calcolaFabbisogno(p) {
   // ripartizione richiesta è sostenibile.
   const gPerKg = gPerKgEffettivo(p);
   const proteine = Math.round(peso * gPerKg);
-  const quotaProteine = obiettivo > 0 ? Math.round(((proteine * 4) / obiettivo) * 100) : 0;
 
-  return { bmr, fattore, tdee, correzione, obiettivo, peso, gPerKg, proteine, quotaProteine };
+  // Grassi: quota delle calorie totali, convertita in grammi a 9 kcal/g.
+  const percGrassi = percGrassiEffettiva(p);
+  const grassi = Math.round((obiettivo * percGrassi / 100) / KCAL_PER_G.grassi);
+
+  // Carboidrati: quello che avanza. Con proteine molto alte e un obiettivo
+  // calorico basso l'avanzo può essere negativo — succede quando le due quote
+  // richieste da sole superano le calorie disponibili. In quel caso i grammi
+  // vanno a zero e chi calcola viene avvisato, invece di leggere un numero
+  // negativo o una ripartizione che non torna.
+  const kcalResidue = obiettivo - proteine * KCAL_PER_G.proteine - grassi * KCAL_PER_G.grassi;
+  const carboidrati = Math.max(0, Math.round(kcalResidue / KCAL_PER_G.carboidrati));
+  const ripartizioneImpossibile = kcalResidue < 0;
+
+  // Le quote sono ricalcolate sui grammi arrotondati (non sulle percentuali di
+  // partenza), così i tre numeri mostrati corrispondono davvero ai grammi
+  // proposti e la loro somma sfiora il 100%.
+  const quota = (grammi, kcalG) => obiettivo > 0 ? Math.round(((grammi * kcalG) / obiettivo) * 100) : 0;
+
+  return {
+    bmr, fattore, tdee, correzione, obiettivo, peso,
+    gPerKg, proteine, quotaProteine: quota(proteine, KCAL_PER_G.proteine),
+    percGrassi, grassi, quotaGrassi: quota(grassi, KCAL_PER_G.grassi),
+    carboidrati, quotaCarboidrati: quota(carboidrati, KCAL_PER_G.carboidrati),
+    ripartizioneImpossibile
+  };
 }
 
 // Nota sotto il campo g/kg: chiarisce quale valore si sta usando quando il
@@ -1423,8 +1519,25 @@ function renderNotaGkg() {
     : `Vuoto: usiamo ${String(suggerito).replace(".", ",")} g/kg, il valore tipico per il livello di attività scelto. ${testoBase}`;
 }
 
+// Nota sotto il campo della quota di grassi: come quella del g/kg, dice quale
+// valore si sta usando e segnala se quello digitato è stato riportato dentro
+// l'intervallo ammesso.
+function renderNotaPercGrassi() {
+  const digitata = parseFloat(String(state.profilo.percGrassi).replace(",", "."));
+  const usata = percGrassiEffettiva(state.profilo);
+  const testoBase = `Riferimento LARN: 20–35% delle calorie. I carboidrati sono la parte che resta.`;
+  if (!(digitata > 0)) {
+    percGrassiNota.textContent = `Vuoto: usiamo ${PERC_GRASSI_SUGGERITA}%. ${testoBase}`;
+  } else if (digitata !== usata) {
+    percGrassiNota.textContent = `Valore riportato a ${usata}%: sono ammesse quote fra ${PERC_GRASSI_MIN}% e ${PERC_GRASSI_MAX}%. ${testoBase}`;
+  } else {
+    percGrassiNota.textContent = testoBase;
+  }
+}
+
 function renderFabbisogno() {
   renderNotaGkg();
+  renderNotaPercGrassi();
   const r = calcolaFabbisogno(state.profilo);
   if (r.mancanti) {
     fabbisognoEsito.innerHTML = `<span class="passaggio">Per la stima servono ancora: ${r.mancanti.join(", ")}.</span>`;
@@ -1435,21 +1548,32 @@ function renderFabbisogno() {
   const correzioneTxt = r.correzione
     ? ` ${r.correzione > 0 ? "+" : "−"} ${Math.abs(r.correzione)} kcal di correzione`
     : "";
+  const avviso = r.ripartizioneImpossibile
+    ? `<div class="fabbisogno-avviso">Proteine e grassi richiesti superano da soli le calorie disponibili: i carboidrati restano a 0. Abbassa i g/kg di proteine o la quota di grassi.</div>`
+    : "";
   fabbisognoEsito.innerHTML = `
     <div class="passaggio">Metabolismo basale ${r.bmr.toLocaleString("it-IT")} kcal × ${fattoreTxt} (attività)${correzioneTxt}</div>
     <div class="risultato">${r.obiettivo.toLocaleString("it-IT")} kcal al giorno</div>
-    <div class="passaggio">Proteine: ${fmtPeso(r.peso)} kg × ${gkgTxt} g/kg</div>
-    <div class="risultato">${r.proteine.toLocaleString("it-IT")} g di proteine al giorno <span class="risultato-quota">(${r.quotaProteine}% delle calorie)</span></div>
+    <div class="passaggio">Proteine: ${fmtPeso(r.peso)} kg × ${gkgTxt} g/kg · Grassi: ${r.percGrassi}% delle calorie ÷ 9 kcal/g · Carboidrati: le calorie che restano ÷ 4 kcal/g</div>
+    <div class="risultato risultato-macro"><i class="punto p-prot"></i>${r.proteine.toLocaleString("it-IT")} g di proteine <span class="risultato-quota">(${r.quotaProteine}% delle calorie)</span></div>
+    <div class="risultato risultato-macro"><i class="punto p-fat"></i>${r.grassi.toLocaleString("it-IT")} g di grassi <span class="risultato-quota">(${r.quotaGrassi}% delle calorie)</span></div>
+    <div class="risultato risultato-macro"><i class="punto p-carb"></i>${r.carboidrati.toLocaleString("it-IT")} g di carboidrati <span class="risultato-quota">(${r.quotaCarboidrati}% delle calorie)</span></div>
+    ${avviso}
     <button type="button" id="usa-fabbisogno-btn">Usa questi obiettivi</button>
   `;
   el("usa-fabbisogno-btn").addEventListener("click", () => {
     // Un obiettivo a 0 (correzione più grande del fabbisogno) vale "nessun
     // obiettivo": scriverlo nel campo mostrerebbe uno "0" che poi non produce
-    // né barra né residuo, e sparirebbe comunque alla ricarica.
+    // né barra né residuo, e sparirebbe comunque alla ricarica. Vale anche per
+    // i carboidrati azzerati da una ripartizione impossibile.
     state.obiettivo = r.obiettivo > 0 ? r.obiettivo : null;
     state.obiettivoProteine = r.proteine > 0 ? r.proteine : null;
+    state.obiettivoGrassi = r.grassi > 0 ? r.grassi : null;
+    state.obiettivoCarboidrati = r.carboidrati > 0 ? r.carboidrati : null;
     obiettivoInput.value = state.obiettivo || "";
     obiettivoProtInput.value = state.obiettivoProteine || "";
+    obiettivoFatInput.value = state.obiettivoGrassi || "";
+    obiettivoCarbInput.value = state.obiettivoCarboidrati || "";
     salvaStato();
     renderGiornata();
     mostraToast(state.obiettivo ? "Obiettivi impostati" : "Fabbisogno azzerato dalla correzione: nessun obiettivo impostato");
@@ -1567,6 +1691,20 @@ function collegaEventi() {
     renderGiornata();
   });
 
+  obiettivoFatInput.addEventListener("input", () => {
+    const v = parseFloat(obiettivoFatInput.value);
+    state.obiettivoGrassi = v > 0 ? v : null;
+    salvaStato();
+    renderGiornata();
+  });
+
+  obiettivoCarbInput.addEventListener("input", () => {
+    const v = parseFloat(obiettivoCarbInput.value);
+    state.obiettivoCarboidrati = v > 0 ? v : null;
+    salvaStato();
+    renderGiornata();
+  });
+
   fabbisognoToggle.addEventListener("click", () => {
     const aperto = !fabbisognoBox.classList.contains("hidden");
     fabbisognoBox.classList.toggle("hidden", aperto);
@@ -1583,7 +1721,7 @@ function collegaEventi() {
     });
   });
 
-  [etaInput, pesoInput, altezzaInput, attivitaSelect, correzioneInput, gkgInput].forEach(campo => {
+  [etaInput, pesoInput, altezzaInput, attivitaSelect, correzioneInput, gkgInput, percGrassiInput].forEach(campo => {
     campo.addEventListener("input", () => {
       leggiProfiloDaiCampi();
       salvaStato();
@@ -1844,9 +1982,12 @@ function ripristinaCampiProfilo() {
   attivitaSelect.value = p.attivita || "Moderato";
   correzioneInput.value = p.correzione || "";
   gkgInput.value = p.gPerKg || "";
+  percGrassiInput.value = p.percGrassi || "";
   Array.from(sessoGruppo.children).forEach(b => b.classList.toggle("attivo", b.dataset.sesso === p.sesso));
   obiettivoInput.value = state.obiettivo || "";
   obiettivoProtInput.value = state.obiettivoProteine || "";
+  obiettivoFatInput.value = state.obiettivoGrassi || "";
+  obiettivoCarbInput.value = state.obiettivoCarboidrati || "";
 }
 
 async function inizializza() {

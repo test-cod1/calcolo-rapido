@@ -311,8 +311,8 @@ button.danger:hover:not(:disabled) { background: var(--danger-hover); }
 .obiettivo-riga button { flex: none; white-space: nowrap; }
 
 @media (max-width: 480px) {
-  /* Su telefono i due obiettivi restano affiancati (sono corti) e il pulsante
-     di calcolo va a capo a tutta larghezza. */
+  /* Su telefono i quattro obiettivi si dispongono a due a due (sono corti) e
+     il pulsante di calcolo va a capo a tutta larghezza. */
   .obiettivo-riga button { width: 100%; }
 }
 
@@ -340,6 +340,33 @@ button.danger:hover:not(:disabled) { background: var(--danger-hover); }
 .fabbisogno-esito .passaggio { color: var(--text-muted); font-size: 0.82rem; }
 .fabbisogno-esito .risultato { font-size: 1.35rem; font-weight: 700; color: var(--accent); margin: 4px 0 8px; }
 .fabbisogno-esito .risultato-quota { font-size: 0.82rem; font-weight: 400; color: var(--text-muted); }
+/* I tre macronutrienti sono un elenco sotto il risultato calorico: più piccoli
+   e in colore normale, così la cifra delle calorie resta quella che si vede
+   per prima. Il quadratino di colore è lo stesso della legenda dei totali. */
+.fabbisogno-esito .risultato-macro {
+  font-size: 1.02rem;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+.fabbisogno-esito .risultato-macro:first-of-type { margin-top: 2px; }
+.fabbisogno-esito .punto {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  margin-right: 6px;
+}
+.fabbisogno-esito .p-prot { background: var(--prot); }
+.fabbisogno-esito .p-fat { background: var(--fat); }
+.fabbisogno-esito .p-carb { background: var(--carb); }
+.fabbisogno-avviso {
+  margin: 8px 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--danger-tint);
+  color: var(--danger-text);
+  font-size: 0.85rem;
+}
 .fabbisogno-esito button { padding: 8px 14px; font-size: 0.9rem; }
 
 /* ---------- Selettori a segmenti ---------- */
@@ -815,6 +842,8 @@ button.danger:hover:not(:disabled) { background: var(--danger-hover); }
 .barra-obiettivo span { display: block; height: 100%; background: var(--accent); }
 .barra-obiettivo span.sforato { background: var(--danger); }
 .barra-proteine span { background: var(--prot); }
+.barra-grassi span { background: var(--fat); }
+.barra-carboidrati span { background: var(--carb); }
 
 .totali-riga-obiettivo {
   display: flex;
@@ -897,6 +926,16 @@ button.danger:hover:not(:disabled) { background: var(--danger-hover); }
 .barra-totale .bt-residuo.sforato { color: var(--danger-text); }
 .barra-totale .bt-residuo-prot { color: var(--prot); }
 .barra-totale .bt-residuo-prot.obiettivo-raggiunto { color: var(--accent); }
+.barra-totale .bt-residuo-fat { color: var(--fat); }
+.barra-totale .bt-residuo-carb { color: var(--carb); }
+
+@media (max-width: 900px) {
+  /* Con quattro residui la barra andrebbe a capo: su schermi non larghi
+     restano i due obiettivi principali (calorie e proteine), gli altri si
+     leggono nel riepilogo in fondo alla giornata. */
+  .barra-totale .bt-residuo-fat,
+  .barra-totale .bt-residuo-carb { display: none; }
+}
 
 @media (max-width: 480px) {
   .barra-totale { gap: 8px; padding: 9px 14px; }

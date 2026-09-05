@@ -12,6 +12,23 @@ calorie e macronutrienti. Nasce come modalità interna del sito nutrizionista ed
 - **Funziona offline** e si installa come app (PWA): dopo la prima apertura il
   service worker tiene una copia dei file.
 
+## Obiettivi giornalieri
+
+Si possono scrivere a mano (calorie, proteine, grassi, carboidrati) oppure farli
+calcolare dal profilo della persona:
+
+1. **Calorie** — Mifflin-St Jeor per il metabolismo basale, moltiplicato per il
+   fattore di attività (PAL) e corretto dell'eventuale deficit o surplus.
+2. **Proteine** — grammi per chilo di peso corporeo (per difetto quelli tipici
+   del livello di attività scelto).
+3. **Grassi** — una quota delle calorie totali, 27% se non si indica altro
+   (i LARN danno 20–35%), convertita in grammi a 9 kcal/g.
+4. **Carboidrati** — le calorie che restano, a 4 kcal/g.
+
+Se proteine e grassi richiesti superano da soli le calorie disponibili, i
+carboidrati restano a 0 e l'app lo segnala invece di mostrare un numero
+negativo.
+
 ## File
 
 | File | Ruolo |

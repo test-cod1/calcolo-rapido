@@ -82,11 +82,19 @@
         <label for="obiettivo-prot-input">Obiettivo proteine <span class="facolt">(g, facoltativo)</span></label>
         <input type="number" id="obiettivo-prot-input" min="0" step="1" placeholder="es. 95" inputmode="numeric">
       </div>
+      <div class="campo campo-obiettivo">
+        <label for="obiettivo-fat-input">Obiettivo grassi <span class="facolt">(g, facoltativo)</span></label>
+        <input type="number" id="obiettivo-fat-input" min="0" step="1" placeholder="es. 60" inputmode="numeric">
+      </div>
+      <div class="campo campo-obiettivo">
+        <label for="obiettivo-carb-input">Obiettivo carboidrati <span class="facolt">(g, facoltativo)</span></label>
+        <input type="number" id="obiettivo-carb-input" min="0" step="1" placeholder="es. 200" inputmode="numeric">
+      </div>
       <button type="button" id="fabbisogno-toggle" class="secondary">🧮 Calcolali</button>
     </div>
 
     <div id="fabbisogno-box" class="fabbisogno-box hidden">
-      <p class="hint">Calorie stimate con la formula di Mifflin-St Jeor; proteine in grammi per chilo di peso corporeo.</p>
+      <p class="hint">Calorie stimate con la formula di Mifflin-St Jeor; proteine in grammi per chilo di peso corporeo. Grassi come quota delle calorie: i carboidrati sono quello che resta.</p>
       <div class="fabbisogno-griglia">
         <div class="campo">
           <label>Sesso</label>
@@ -125,6 +133,11 @@
           <label for="gkg-input">Proteine per kg di peso <span class="facolt">(g/kg)</span></label>
           <input type="number" id="gkg-input" min="0" max="4" step="0.1" placeholder="1,4" inputmode="decimal">
           <p class="hint" id="gkg-nota"></p>
+        </div>
+        <div class="campo campo-largo">
+          <label for="perc-grassi-input">Grassi <span class="facolt">(% delle calorie)</span></label>
+          <input type="number" id="perc-grassi-input" min="15" max="45" step="1" placeholder="27" inputmode="numeric">
+          <p class="hint" id="perc-grassi-nota"></p>
         </div>
       </div>
       <div id="fabbisogno-esito" class="fabbisogno-esito"></div>
