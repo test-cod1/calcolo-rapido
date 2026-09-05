@@ -37,11 +37,32 @@ negativo.
 | `style.css` | tutto il foglio di stile |
 | `app.js` | tutta la logica |
 | `tema-init.js` | applica il tema salvato prima del rendering (evita il flash chiaro) |
-| `foods.json` | tabella degli alimenti, in sola lettura |
+| `foods.json` | tabella degli alimenti, in sola lettura (vedi sotto) |
 | `manifest.json` | dati per l'installazione come app |
 | `sw.js` | service worker: cache network-first per l'uso offline |
 | `_headers` | header di sicurezza per Cloudflare Pages |
 | `icons/` | icone dell'app |
+
+## La tabella degli alimenti
+
+`foods.json` contiene **464 alimenti in 17 categorie**, ricavati dal foglio
+*Tabella alimenti* del file «Macronutrienti - calcolo (alimenti selezionati)»:
+una selezione ragionata, non l'elenco completo delle tabelle di composizione.
+
+Ogni voce ha nome, calorie, proteine, grassi e carboidrati per 100 g, più la
+categoria, il codice dell'alimento e — dove c'è — il nome scientifico. Categoria
+e codice non sono ancora usati dall'app: servono per il filtro per categoria e
+per identificare l'alimento quando la tabella verrà aggiornata.
+
+Un valore a **−2 significa «dato non disponibile»**, non zero: è la convenzione
+del foglio di partenza. Sono 41 alimenti (per esempio i carboidrati del
+parmigiano). L'app li tratta come zero, quindi in quei casi il totale della
+giornata è leggermente sottostimato.
+
+Per sostituire la tabella: si riesporta il foglio, si tolgono le righe di
+categoria, si ripuliscono i nomi dal nome scientifico fra parentesi quadre e si
+riscrive il file con la stessa struttura. I nomi vanno lasciati come sono: sono
+la chiave con cui l'app ritrova gli alimenti.
 
 ## Prova in locale
 
