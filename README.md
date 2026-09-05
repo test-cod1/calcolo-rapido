@@ -12,6 +12,33 @@ calorie e macronutrienti. Nasce come modalità interna del sito nutrizionista ed
 - **Funziona offline** e si installa come app (PWA): dopo la prima apertura il
   service worker tiene una copia dei file.
 
+## Diete, giornate, pasti
+
+Tre livelli, dal più grande al più piccolo:
+
+- **Dieta** — un piano a sé: ha nome, colore, profilo della persona e obiettivi
+  propri. Fino a 10, si cambia dal menù in cima alla pagina. Le diete non
+  condividono nulla fra loro.
+- **Giornata** — una variante della stessa dieta (fino a 7 schede). Le giornate
+  di una dieta condividono obiettivi e profilo.
+- **Pasto** — colazione, spuntino del mattino, pranzo, merenda, cena, spuntino
+  serale.
+
+Il **colore della dieta** non è un'etichetta: riscrive la famiglia di variabili
+CSS `--accent`, quindi tinge intestazione, bottoni, barre e schede. Serve a
+non scrivere per sbaglio nella dieta sbagliata. Il verde è il colore
+predefinito di `:root`, perciò una dieta verde ha l'aspetto di sempre.
+
+Nel codice, `state` è **la dieta aperta**: un riferimento dentro
+`archivio.diete`, non una copia. Cambiare dieta vuol dire riassegnare quella
+variabile, così tutto il resto continua a leggere `state.giornate` come
+quando le diete erano una sola. La pila di «Annulla» viene azzerata a ogni
+cambio: contiene le giornate della dieta che si sta lasciando.
+
+Lo stato salvato in `localStorage` (`rapido-stato-v1`) è ora
+`{ diete: [...], dietaAttiva }`. Uno stato scritto da una versione precedente
+viene letto lo stesso e diventa la prima dieta.
+
 ## Obiettivi giornalieri
 
 Si possono scrivere a mano (calorie, proteine, grassi, carboidrati) oppure farli

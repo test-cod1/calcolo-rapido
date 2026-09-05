@@ -52,6 +52,30 @@ const KCAL_PER_G = { proteine: 4, grassi: 9, carboidrati: 4 };
 // ---------- Stato ----------
 
 const MAX_GIORNATE = 7;
+const MAX_DIETE = 10;
+
+// Colore di riconoscimento della dieta: tinge intestazione, bottoni e schede,
+// così passando da una dieta all'altra si vede a colpo d'occhio dove si sta
+// lavorando. Gli id finiscono nello stato salvato: non vanno rinominati.
+const COLORI_DIETA = [
+  { id: "verde",    nome: "Verde" },
+  { id: "blu",      nome: "Blu" },
+  { id: "viola",    nome: "Viola" },
+  { id: "ambra",    nome: "Ambra" },
+  { id: "mattone",  nome: "Mattone" },
+  { id: "turchese", nome: "Turchese" },
+  { id: "rosa",     nome: "Rosa" },
+  { id: "ardesia",  nome: "Ardesia" }
+];
+
+function coloreValido(id) {
+  return COLORI_DIETA.some(c => c.id === id) ? id : COLORI_DIETA[0].id;
+}
+
+function nomeColore(id) {
+  const c = COLORI_DIETA.find(c => c.id === coloreValido(id));
+  return c ? c.nome : "";
+}
 
 function creaPastiVuoti() {
   const g = {};
@@ -74,18 +98,56 @@ function nomeGiornataLibero() {
   return "Giornata";
 }
 
-function creaStatoVuoto() {
+// Una dieta è un piano a sé: profilo, obiettivi e giornate sono suoi e non
+// vengono condivisi con le altre. Le giornate restano quello che erano, cioè
+// le varianti della STESSA dieta.
+function creaDietaVuota(nome, colore) {
   return {
+    nome: nome || "Dieta 1",
+    colore: coloreValido(colore),
     obiettivo: null,             // kcal obiettivo del giorno (null = nessuno)
     obiettivoProteine: null,     // grammi di proteine obiettivo (null = nessuno)
     obiettivoGrassi: null,       // grammi di grassi obiettivo (null = nessuno)
     obiettivoCarboidrati: null,  // grammi di carboidrati obiettivo (null = nessuno)
-    // Gli obiettivi sono del paziente, quindi valgono per tutte le giornate;
-    // le giornate sono varianti dello stesso piano, fino a MAX_GIORNATE.
     giornate: [creaGiornata("Giorno 1")],
     attiva: 0,
     profilo: { sesso: "", eta: "", peso: "", altezza: "", attivita: "Moderato", correzione: "", gPerKg: "", percGrassi: "" }
   };
+}
+
+function creaArchivioVuoto() {
+  return { diete: [creaDietaVuota("Dieta 1", COLORI_DIETA[0].id)], dietaAttiva: 0 };
+}
+
+// Come per le giornate: primo "Dieta N" non ancora in uso.
+function nomeDietaLibero() {
+  const usati = new Set(archivio.diete.map(d => d.nome));
+  for (let i = 1; i <= MAX_DIETE + 1; i++) {
+    const nome = `Dieta ${i}`;
+    if (!usati.has(nome)) return nome;
+  }
+  return "Dieta";
+}
+
+// Due diete con lo stesso nome sono indistinguibili nel menù a tendina, nella
+// stampa e nel testo copiato: al nome ripetuto si aggiunge un numero.
+function nomeDietaUnico(nome, esclusa) {
+  const base = nome.slice(0, 40);
+  const usati = new Set(archivio.diete.filter((d, i) => i !== esclusa).map(d => d.nome));
+  if (!usati.has(base)) return base;
+  for (let i = 2; i <= MAX_DIETE + 1; i++) {
+    const tentativo = `${base.slice(0, 36)} (${i})`;
+    if (!usati.has(tentativo)) return tentativo;
+  }
+  return base;
+}
+
+// Primo colore non ancora assegnato: due diete dello stesso colore vanificano
+// il colpo d'occhio. Finiti i colori si ricomincia dal primo.
+function coloreDietaLibero() {
+  const usati = new Set(archivio.diete.map(d => d.colore));
+  const libero = COLORI_DIETA.find(c => !usati.has(c.id));
+  return libero ? libero.id : COLORI_DIETA[archivio.diete.length % COLORI_DIETA.length].id;
 }
 
 // Pasti della giornata su cui si sta lavorando: quasi tutto il resto del file
@@ -98,7 +160,11 @@ function giornataCorrente() {
   return state.giornate[state.attiva];
 }
 
-let state = creaStatoVuoto();
+let archivio = creaArchivioVuoto();
+// "state" è la dieta aperta: un riferimento dentro l'archivio, non una copia.
+// Cambiare dieta vuol dire riassegnare questa variabile, e tutto il resto del
+// file continua a leggere state.obiettivo / state.giornate come prima.
+let state = archivio.diete[0];
 let alimentiBase = [];          // voci di foods.json, mai modificate
 let alimentiCustom = [];        // alimenti creati qui, solo in locale
 let foodMap = new Map();        // chiave (nome originale) -> valori per 100 g
@@ -171,6 +237,15 @@ const previewCarb = el("preview-carb");
 const notaInput = el("nota-input");
 const pastoSelect = el("pasto-select");
 const aggiungiBtn = el("aggiungi-btn");
+
+const dietaSelect = el("dieta-select");
+const dietaNomeInput = el("dieta-nome-input");
+const dietaRinominaBtn = el("dieta-rinomina-btn");
+const dietaColoreBtn = el("dieta-colore-btn");
+const dietaColori = el("dieta-colori");
+const dietaNuovaBtn = el("dieta-nuova-btn");
+const dietaEliminaBtn = el("dieta-elimina-btn");
+const dietaInfo = el("dieta-info");
 
 const giornateSchede = el("giornate-schede");
 const giornataNuovaBtn = el("giornata-nuova-btn");
@@ -281,7 +356,7 @@ function inizializzaTema() {
 // ---------- Persistenza locale ----------
 
 function salvaStato() {
-  try { localStorage.setItem(CHIAVE_STATO, JSON.stringify(state)); } catch (e) { /* quota/privato */ }
+  try { localStorage.setItem(CHIAVE_STATO, JSON.stringify(archivio)); } catch (e) { /* quota/privato */ }
 }
 
 function caricaStato() {
@@ -289,28 +364,50 @@ function caricaStato() {
   try { salvato = JSON.parse(localStorage.getItem(CHIAVE_STATO) || "null"); } catch (e) { salvato = null; }
   if (!salvato || typeof salvato !== "object") return;
 
-  const nuovo = creaStatoVuoto();
-  nuovo.obiettivo = Number(salvato.obiettivo) > 0 ? Number(salvato.obiettivo) : null;
-  nuovo.obiettivoProteine = Number(salvato.obiettivoProteine) > 0 ? Number(salvato.obiettivoProteine) : null;
-  nuovo.obiettivoGrassi = Number(salvato.obiettivoGrassi) > 0 ? Number(salvato.obiettivoGrassi) : null;
-  nuovo.obiettivoCarboidrati = Number(salvato.obiettivoCarboidrati) > 0 ? Number(salvato.obiettivoCarboidrati) : null;
-  if (salvato.profilo && typeof salvato.profilo === "object") {
-    Object.assign(nuovo.profilo, salvato.profilo);
+  const nuovo = creaArchivioVuoto();
+  if (Array.isArray(salvato.diete) && salvato.diete.length) {
+    nuovo.diete = salvato.diete.slice(0, MAX_DIETE).map((d, i) =>
+      leggiDieta(d, `Dieta ${i + 1}`, COLORI_DIETA[i % COLORI_DIETA.length].id));
+    const attiva = Number(salvato.dietaAttiva);
+    nuovo.dietaAttiva = attiva >= 0 && attiva < nuovo.diete.length ? attiva : 0;
+  } else {
+    // Stato scritto prima delle diete multiple: diventa la prima dieta.
+    nuovo.diete = [leggiDieta(salvato, "Dieta 1", COLORI_DIETA[0].id)];
+    nuovo.dietaAttiva = 0;
+  }
+  archivio = nuovo;
+  state = archivio.diete[archivio.dietaAttiva];
+}
+
+// Rilegge una dieta campo per campo: come per i pasti, una struttura salvata
+// da una versione diversa (o manomessa) non deve poter rompere il rendering.
+function leggiDieta(salvata, nomePredefinito, colorePredefinito) {
+  const dieta = creaDietaVuota(nomePredefinito, colorePredefinito);
+  if (!salvata || typeof salvata !== "object") return dieta;
+
+  dieta.nome = String(salvata.nome || nomePredefinito).slice(0, 40);
+  dieta.colore = coloreValido(salvata.colore || colorePredefinito);
+  dieta.obiettivo = Number(salvata.obiettivo) > 0 ? Number(salvata.obiettivo) : null;
+  dieta.obiettivoProteine = Number(salvata.obiettivoProteine) > 0 ? Number(salvata.obiettivoProteine) : null;
+  dieta.obiettivoGrassi = Number(salvata.obiettivoGrassi) > 0 ? Number(salvata.obiettivoGrassi) : null;
+  dieta.obiettivoCarboidrati = Number(salvata.obiettivoCarboidrati) > 0 ? Number(salvata.obiettivoCarboidrati) : null;
+  if (salvata.profilo && typeof salvata.profilo === "object") {
+    Object.assign(dieta.profilo, salvata.profilo);
   }
 
-  if (Array.isArray(salvato.giornate) && salvato.giornate.length) {
-    nuovo.giornate = salvato.giornate.slice(0, MAX_GIORNATE).map((g, i) => ({
+  if (Array.isArray(salvata.giornate) && salvata.giornate.length) {
+    dieta.giornate = salvata.giornate.slice(0, MAX_GIORNATE).map((g, i) => ({
       nome: String((g && g.nome) || `Giorno ${i + 1}`).slice(0, 40),
       pasti: leggiPasti(g && g.pasti)
     }));
-    const attiva = Number(salvato.attiva);
-    nuovo.attiva = attiva >= 0 && attiva < nuovo.giornate.length ? attiva : 0;
-  } else if (salvato.giornata) {
+    const attiva = Number(salvata.attiva);
+    dieta.attiva = attiva >= 0 && attiva < dieta.giornate.length ? attiva : 0;
+  } else if (salvata.giornata) {
     // Stato scritto prima delle schede multiple: diventa la prima giornata.
-    nuovo.giornate = [{ nome: "Giorno 1", pasti: leggiPasti(salvato.giornata) }];
-    nuovo.attiva = 0;
+    dieta.giornate = [{ nome: "Giorno 1", pasti: leggiPasti(salvata.giornata) }];
+    dieta.attiva = 0;
   }
-  state = nuovo;
+  return dieta;
 }
 
 // Rilegge i pasti voce per voce: una struttura salvata da una versione diversa
@@ -340,6 +437,133 @@ function caricaAlimentiCustom() {
   } catch (e) {
     alimentiCustom = [];
   }
+}
+
+// ---------- Diete ----------
+// Le diete sono indipendenti: cambiare dieta significa cambiare paziente, non
+// giornata. Per questo ognuna ha un nome e un colore propri, e il colore vale
+// per tutta la pagina: è il segnale che dice "stai lavorando su quest'altra".
+
+// Rinomina in corso della dieta aperta: il menù a tendina lascia il posto a un
+// campo di testo, come per le schede delle giornate.
+let dietaInRinomina = false;
+
+function applicaColoreDieta() {
+  document.body.dataset.dieta = coloreValido(state.colore);
+}
+
+function chiudiRinominaDieta() {
+  dietaInRinomina = false;
+}
+
+// Tutto quello che cambia quando si passa da una dieta all'altra: colore,
+// campi del profilo, obiettivi, giornate. La pila di annullamento viene
+// azzerata perché contiene le giornate della dieta che si sta lasciando:
+// riversarle qui sarebbe un disastro silenzioso.
+function apriDietaCorrente(messaggio) {
+  state = archivio.diete[archivio.dietaAttiva];
+  pilaAnnulla = [];
+  modificaPesoInCorso = null;
+  chiudiRinominaDieta();
+  chiudiRinominaScheda();
+  chiudiMenuAzioni();
+  salvaStato();
+  applicaColoreDieta();
+  ripristinaCampiProfilo();
+  renderFabbisogno();
+  renderGiornata();
+  aggiornaBottoneAnnulla();
+  if (messaggio) mostraToast(messaggio);
+}
+
+function cambiaDieta(indice) {
+  if (indice < 0 || indice >= archivio.diete.length || indice === archivio.dietaAttiva) return;
+  archivio.dietaAttiva = indice;
+  apriDietaCorrente(`Dieta aperta: ${archivio.diete[indice].nome}`);
+}
+
+// La creazione di una dieta non è annullabile con «Annulla»: quel pulsante
+// lavora dentro una dieta sola. Per disfarla c'è il cestino qui accanto.
+function nuovaDieta() {
+  if (archivio.diete.length >= MAX_DIETE) return;
+  const dieta = creaDietaVuota(nomeDietaLibero(), coloreDietaLibero());
+  archivio.diete.push(dieta);
+  archivio.dietaAttiva = archivio.diete.length - 1;
+  apriDietaCorrente(`${dieta.nome}: pronta`);
+}
+
+function eliminaDieta() {
+  if (archivio.diete.length <= 1) return;
+  const dieta = state;
+  const nome = dieta.nome;
+  const conAlimenti = dieta.giornate.some(g => !pastiVuoti(g.pasti));
+  const avviso = conAlimenti
+    ? " Contiene degli alimenti e l'operazione non si può annullare."
+    : "";
+  if (!confirm(`Eliminare la dieta "${nome}"?${avviso}`)) return;
+  archivio.diete.splice(archivio.dietaAttiva, 1);
+  if (archivio.dietaAttiva >= archivio.diete.length) archivio.dietaAttiva = archivio.diete.length - 1;
+  apriDietaCorrente(`Dieta "${nome}" eliminata`);
+}
+
+function apriRinominaDieta() {
+  dietaInRinomina = true;
+  dietaNomeInput.value = state.nome;
+  renderDiete();
+}
+
+function confermaRinominaDieta(valore) {
+  chiudiRinominaDieta();
+  const pulito = String(valore || "").trim();
+  if (pulito) state.nome = nomeDietaUnico(pulito, archivio.dietaAttiva);
+  salvaStato();
+  renderDiete();
+  renderGiornata();
+}
+
+function impostaColoreDieta(id) {
+  state.colore = coloreValido(id);
+  salvaStato();
+  applicaColoreDieta();
+  renderDiete();
+}
+
+function renderDiete() {
+  const piu = archivio.diete.length > 1;
+
+  dietaSelect.classList.toggle("hidden", dietaInRinomina);
+  dietaNomeInput.classList.toggle("hidden", !dietaInRinomina);
+  if (dietaInRinomina) {
+    if (document.activeElement !== dietaNomeInput) { dietaNomeInput.focus(); dietaNomeInput.select(); }
+  } else {
+    dietaSelect.innerHTML = archivio.diete.map((d, i) =>
+      `<option value="${i}"${i === archivio.dietaAttiva ? " selected" : ""}>${escapeHtml(d.nome)}</option>`
+    ).join("");
+  }
+
+  const pieno = archivio.diete.length >= MAX_DIETE;
+  dietaNuovaBtn.disabled = pieno;
+  dietaNuovaBtn.title = pieno
+    ? `Massimo ${MAX_DIETE} diete: eliminane una per aggiungerne un'altra`
+    : "Aggiungi una dieta";
+  dietaEliminaBtn.disabled = !piu;
+  dietaEliminaBtn.title = piu
+    ? `Elimina «${state.nome}» con tutte le sue giornate`
+    : "L'unica dieta non si può eliminare";
+
+  dietaColori.innerHTML = COLORI_DIETA.map(c => `
+    <button type="button" class="dieta-colore${c.id === state.colore ? " attivo" : ""}" data-colore="${c.id}"
+            title="${c.nome}" aria-label="Colore ${c.nome}" aria-pressed="${c.id === state.colore}"></button>`).join("");
+
+  const r = mediaGiornate(state.giornate);
+  const parti = [
+    piu ? `Dieta ${archivio.dietaAttiva + 1} di ${archivio.diete.length}` : "Un'unica dieta",
+    `${state.giornate.length} ${state.giornate.length === 1 ? "giornata" : "giornate"}`,
+    r ? `media ${arrotonda(r.media.kcal)} kcal` : "ancora vuota"
+  ];
+  if (state.obiettivo > 0) parti.push(`obiettivo ${arrotonda(state.obiettivo)} kcal`);
+  parti.push(`colore ${nomeColore(state.colore)}`);
+  dietaInfo.textContent = parti.join(" · ");
 }
 
 // ---------- Database alimenti ----------
@@ -922,8 +1146,13 @@ function renderBarraTotale(t) {
   };
   const residuoFat = residuoMacro(state.obiettivoGrassi, t.grassi, "gr.", "bt-residuo-fat");
   const residuoCarb = residuoMacro(state.obiettivoCarboidrati, t.carboidrati, "carb.", "bt-residuo-carb");
-  const nomeGiornata = state.giornate.length > 1
-    ? `<span class="bt-giornata">${escapeHtml(giornataCorrente().nome)}</span>`
+  // Etichetta a sinistra: con più diete aperte il nome della giornata da solo
+  // sarebbe ambiguo ("Giorno 1" ce l'hanno tutte), quindi si antepone la dieta.
+  const etichette = [];
+  if (archivio.diete.length > 1) etichette.push(state.nome);
+  if (state.giornate.length > 1) etichette.push(giornataCorrente().nome);
+  const nomeGiornata = etichette.length
+    ? `<span class="bt-giornata">${escapeHtml(etichette.join(" · "))}</span>`
     : "";
   barraTotale.innerHTML = `
     ${nomeGiornata}
@@ -990,6 +1219,7 @@ function renderSchede() {
 }
 
 function renderGiornata() {
+  renderDiete();
   renderSchede();
   aggiornaMenuAzioni();
   const t = totaliGiornata();
@@ -1224,9 +1454,16 @@ function testoDiGiornata(giornata, conNome) {
     `\n${rigaMacroTesto(t)}`;
 }
 
+// Con più diete aperte il testo incollato dice da quale arriva: incollato in
+// una cartella clinica, "Giorno 1" da solo non direbbe di chi è.
+function conIntestazioneDieta(testo) {
+  if (!testo || archivio.diete.length <= 1) return testo;
+  return `DIETA: ${state.nome.toUpperCase()}\n${"═".repeat(28)}\n\n${testo}`;
+}
+
 function testoGiornata() {
   // Con più schede aperte il testo incollato dice a quale giornata si riferisce.
-  return testoDiGiornata(giornataCorrente(), state.giornate.length > 1);
+  return conIntestazioneDieta(testoDiGiornata(giornataCorrente(), state.giornate.length > 1));
 }
 
 // Media dei valori sulle giornate che contengono qualcosa: le schede vuote
@@ -1260,7 +1497,7 @@ function testoTutteLeGiornate() {
       `\nMedia giornaliera: ${arrotonda(riepilogo.media.kcal)} kcal` +
       `\n${rigaMacroTesto(riepilogo.media)}`;
   }
-  return blocchi.join(`\n\n${"─".repeat(28)}\n\n`) + coda;
+  return conIntestazioneDieta(blocchi.join(`\n\n${"─".repeat(28)}\n\n`) + coda);
 }
 
 async function copiaTesto(testo, messaggio) {
@@ -1344,9 +1581,11 @@ function intestazioneStampa(titolo) {
     state.obiettivoCarboidrati > 0 ? `${round1(state.obiettivoCarboidrati)} g di carboidrati` : ""
   ].filter(Boolean).join(", ");
   const obiettivo = obiettivi ? ` · Obiettivo: ${obiettivi}` : "";
+  // Con più diete in archivio il foglio stampato deve dire di quale si tratta.
+  const dieta = archivio.diete.length > 1 ? `Dieta: ${escapeHtml(state.nome)} · ` : "";
   return `
     <h1 class="stampa-titolo">${titolo}</h1>
-    <p class="stampa-meta">Calcolo rapido del ${new Date().toLocaleDateString("it-IT")}${obiettivo}</p>`;
+    <p class="stampa-meta">${dieta}Calcolo rapido del ${new Date().toLocaleDateString("it-IT")}${obiettivo}</p>`;
 }
 
 // Blocco stampabile di una giornata: i pasti con i loro alimenti e il totale.
@@ -1783,6 +2022,37 @@ function collegaEventi() {
   });
   aggiungiBtn.addEventListener("click", aggiungiAlPasto);
 
+  // Diete
+  dietaSelect.addEventListener("change", () => cambiaDieta(Number(dietaSelect.value)));
+  dietaNuovaBtn.addEventListener("click", nuovaDieta);
+  dietaEliminaBtn.addEventListener("click", eliminaDieta);
+  dietaRinominaBtn.addEventListener("click", apriRinominaDieta);
+
+  dietaNomeInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      dietaNomeInput.blur();
+    } else if (e.key === "Escape") {
+      // Escape annulla la rinomina: con il campo vuoto il nome resta quello.
+      dietaNomeInput.value = "";
+      dietaNomeInput.blur();
+    }
+  });
+  dietaNomeInput.addEventListener("blur", () => {
+    if (!dietaInRinomina) return;
+    confermaRinominaDieta(dietaNomeInput.value);
+  });
+
+  dietaColoreBtn.addEventListener("click", () => {
+    const aperto = !dietaColori.classList.contains("hidden");
+    dietaColori.classList.toggle("hidden", aperto);
+    dietaColoreBtn.setAttribute("aria-expanded", String(!aperto));
+  });
+  dietaColori.addEventListener("click", (e) => {
+    const scelta = e.target.closest("[data-colore]");
+    if (scelta) impostaColoreDieta(scelta.dataset.colore);
+  });
+
   // Schede delle giornate
   giornataNuovaBtn.addEventListener("click", nuovaGiornata);
 
@@ -1994,6 +2264,7 @@ async function inizializza() {
   inizializzaTema();
   caricaAlimentiCustom();
   caricaStato();
+  applicaColoreDieta();
   ripristinaCampiProfilo();
   impostaModo("grammi");
   collegaEventi();

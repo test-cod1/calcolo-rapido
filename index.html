@@ -71,6 +71,27 @@
     </div>
   </div>
 
+  <!-- ---------- Dieta aperta ---------- -->
+  <!-- Sta in cima perché tutto quello che segue (obiettivi, profilo, giornate)
+       appartiene alla dieta scelta qui. Il colore scelto tinge l'intera pagina:
+       è il segnale che dice a colpo d'occhio su quale dieta si sta lavorando. -->
+  <section class="card card-dieta no-print">
+    <div class="dieta-barra">
+      <span class="dieta-punto" aria-hidden="true"></span>
+      <label class="dieta-etichetta" for="dieta-select">Dieta</label>
+      <select id="dieta-select" aria-label="Dieta aperta"></select>
+      <input type="text" id="dieta-nome-input" class="dieta-nome-input hidden" maxlength="40" aria-label="Nome della dieta">
+      <div class="dieta-azioni">
+        <button type="button" id="dieta-rinomina-btn" class="dieta-azione" title="Rinomina questa dieta" aria-label="Rinomina questa dieta">✎</button>
+        <button type="button" id="dieta-colore-btn" class="dieta-azione" title="Colore di questa dieta" aria-label="Colore di questa dieta" aria-haspopup="true" aria-expanded="false">🎨</button>
+        <button type="button" id="dieta-nuova-btn" class="dieta-azione" title="Aggiungi una dieta" aria-label="Aggiungi una dieta">+</button>
+        <button type="button" id="dieta-elimina-btn" class="dieta-azione dieta-azione-danger" title="Elimina questa dieta" aria-label="Elimina questa dieta">🗑</button>
+      </div>
+    </div>
+    <div id="dieta-colori" class="dieta-colori hidden" role="group" aria-label="Colore della dieta"></div>
+    <p class="dieta-info" id="dieta-info"></p>
+  </section>
+
   <!-- ---------- Obiettivo calorico ---------- -->
   <section class="card no-print">
     <div class="obiettivo-riga">
@@ -256,7 +277,7 @@
 
   <p class="nota-finale no-print">
     Applicazione indipendente: nulla di ciò che scrivi qui viene inviato o salvato online.
-    La giornata resta memorizzata solo in questo browser, finché non la svuoti.
+    Le diete restano memorizzate solo in questo browser, finché non le elimini.
   </p>
 
   <!-- Riepilogo sempre visibile mentre si compone -->

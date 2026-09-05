@@ -61,6 +61,101 @@
   --focus-ring: rgba(94, 163, 122, 0.25);
 }
 
+/* ---------- Colori delle diete ----------
+   Ogni dieta ha il suo colore: riscrive la famiglia "accent", cioè
+   l'intestazione, i bottoni, le barre e le schede. Passando da una dieta
+   all'altra cambia l'aspetto di tutta la pagina, non solo di un'etichetta.
+   Il verde non compare qui: è il colore predefinito delle variabili di :root,
+   così una dieta verde vede esattamente l'applicazione di sempre. */
+
+body[data-dieta="blu"] {
+  --accent: #2b5f8a; --accent-hover: #21496b;
+  --accent-gradient: linear-gradient(135deg, #2b5f8a, #3f86b5);
+  --accent-tint: #edf3f8; --accent-border: #bdd0e0;
+  --focus-ring: rgba(63, 134, 181, 0.18);
+}
+body[data-dieta="viola"] {
+  --accent: #6b4a9c; --accent-hover: #553a7d;
+  --accent-gradient: linear-gradient(135deg, #6b4a9c, #8a63c0);
+  --accent-tint: #f2eef9; --accent-border: #cdc0e4;
+  --focus-ring: rgba(138, 99, 192, 0.18);
+}
+body[data-dieta="ambra"] {
+  --accent: #a05a1c; --accent-hover: #834916;
+  --accent-gradient: linear-gradient(135deg, #a05a1c, #c47a2e);
+  --accent-tint: #fbf1e8; --accent-border: #e5c9ac;
+  --focus-ring: rgba(196, 122, 46, 0.18);
+}
+body[data-dieta="mattone"] {
+  --accent: #a3423d; --accent-hover: #863430;
+  --accent-gradient: linear-gradient(135deg, #a3423d, #c26058);
+  --accent-tint: #fbeeee; --accent-border: #e2bfbc;
+  --focus-ring: rgba(194, 96, 88, 0.18);
+}
+body[data-dieta="turchese"] {
+  --accent: #1c7573; --accent-hover: #145d5b;
+  --accent-gradient: linear-gradient(135deg, #1c7573, #2c9694);
+  --accent-tint: #e9f5f5; --accent-border: #b3d6d5;
+  --focus-ring: rgba(44, 150, 148, 0.18);
+}
+body[data-dieta="rosa"] {
+  --accent: #a03f74; --accent-hover: #83335e;
+  --accent-gradient: linear-gradient(135deg, #a03f74, #bf5a92);
+  --accent-tint: #fbeef5; --accent-border: #e4bfd3;
+  --focus-ring: rgba(191, 90, 146, 0.18);
+}
+body[data-dieta="ardesia"] {
+  --accent: #4a5c68; --accent-hover: #3b4a54;
+  --accent-gradient: linear-gradient(135deg, #4a5c68, #687e8e);
+  --accent-tint: #eef1f3; --accent-border: #c6d0d6;
+  --focus-ring: rgba(104, 126, 142, 0.18);
+}
+
+/* In modalità notte le stesse tinte, schiarite: sul fondo scuro i colori
+   pieni della modalità giorno risulterebbero illeggibili. */
+:root.tema-notte body[data-dieta="blu"] {
+  --accent: #6fa8c4; --accent-hover: #85b9d3;
+  --accent-gradient: linear-gradient(135deg, #22465e, #2f6383);
+  --accent-tint: #1d2c36; --accent-border: #3c5568;
+  --focus-ring: rgba(111, 168, 196, 0.25);
+}
+:root.tema-notte body[data-dieta="viola"] {
+  --accent: #b18ad4; --accent-hover: #c3a2e0;
+  --accent-gradient: linear-gradient(135deg, #3d3060, #573f80);
+  --accent-tint: #2a2338; --accent-border: #4a3b63;
+  --focus-ring: rgba(177, 138, 212, 0.25);
+}
+:root.tema-notte body[data-dieta="ambra"] {
+  --accent: #d99b53; --accent-hover: #e7b070;
+  --accent-gradient: linear-gradient(135deg, #5c3d16, #7d5522);
+  --accent-tint: #332a1e; --accent-border: #5c4526;
+  --focus-ring: rgba(217, 155, 83, 0.25);
+}
+:root.tema-notte body[data-dieta="mattone"] {
+  --accent: #d98079; --accent-hover: #e79a92;
+  --accent-gradient: linear-gradient(135deg, #5f2b28, #7d3b36);
+  --accent-tint: #33231f; --accent-border: #5c3833;
+  --focus-ring: rgba(217, 128, 121, 0.25);
+}
+:root.tema-notte body[data-dieta="turchese"] {
+  --accent: #63b8b5; --accent-hover: #7fcac7;
+  --accent-gradient: linear-gradient(135deg, #1d5352, #2a7371);
+  --accent-tint: #1c302f; --accent-border: #356160;
+  --focus-ring: rgba(99, 184, 181, 0.25);
+}
+:root.tema-notte body[data-dieta="rosa"] {
+  --accent: #d888b0; --accent-hover: #e6a2c4;
+  --accent-gradient: linear-gradient(135deg, #5f2848, #7e3a61);
+  --accent-tint: #33222c; --accent-border: #5f3a4d;
+  --focus-ring: rgba(216, 136, 176, 0.25);
+}
+:root.tema-notte body[data-dieta="ardesia"] {
+  --accent: #93a9b7; --accent-hover: #a9bcc8;
+  --accent-gradient: linear-gradient(135deg, #31404a, #465a67);
+  --accent-tint: #252f35; --accent-border: #44555f;
+  --focus-ring: rgba(147, 169, 183, 0.25);
+}
+
 * { box-sizing: border-box; }
 
 body {
@@ -947,6 +1042,114 @@ button.danger:hover:not(:disabled) { background: var(--danger-hover); }
   color: var(--text-muted);
   text-align: center;
   margin: 0 8px;
+}
+
+/* ---------- Barra della dieta aperta ---------- */
+
+/* Bordo colorato a sinistra: ripete il colore della dieta anche quando la
+   pagina è scorsa e l'intestazione non si vede più. */
+.card-dieta {
+  border-left: 4px solid var(--accent);
+  padding: 14px 16px;
+}
+
+.dieta-barra {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.dieta-punto {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--accent-gradient);
+  box-shadow: 0 0 0 3px var(--accent-tint);
+}
+
+.dieta-etichetta {
+  flex: none;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--text-muted);
+  margin: 0;
+}
+
+#dieta-select,
+.dieta-nome-input {
+  flex: 1 1 140px;
+  min-width: 0;
+  max-width: 320px;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--accent);
+}
+
+.dieta-azioni {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+
+.dieta-azione {
+  min-width: 38px;
+  padding: 7px 9px;
+  background: var(--surface-alt-2);
+  border: 1px solid var(--border);
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  border-radius: 9px;
+}
+.dieta-azione:hover:not(:disabled) { background: var(--accent-tint); color: var(--accent); }
+.dieta-azione:disabled { opacity: 0.45; }
+.dieta-azione-danger:hover:not(:disabled) { background: var(--danger-tint); color: var(--danger-text); }
+
+.dieta-colori {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+  margin-top: 12px;
+}
+
+.dieta-colore {
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  box-shadow: 0 0 0 1px var(--border);
+}
+.dieta-colore.attivo {
+  border-color: var(--surface);
+  box-shadow: 0 0 0 2px var(--text);
+}
+.dieta-colore[data-colore="verde"]    { background: #3f9068; }
+.dieta-colore[data-colore="blu"]      { background: #3f86b5; }
+.dieta-colore[data-colore="viola"]    { background: #8a63c0; }
+.dieta-colore[data-colore="ambra"]    { background: #c47a2e; }
+.dieta-colore[data-colore="mattone"]  { background: #c26058; }
+.dieta-colore[data-colore="turchese"] { background: #2c9694; }
+.dieta-colore[data-colore="rosa"]     { background: #bf5a92; }
+.dieta-colore[data-colore="ardesia"]  { background: #687e8e; }
+
+.dieta-info {
+  margin: 10px 0 0;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+@media (pointer: coarse) {
+  .dieta-azione { min-height: 44px; }
+  .dieta-colore { width: 32px; height: 32px; }
+}
+
+@media (max-width: 480px) {
+  .dieta-azioni { margin-left: 0; width: 100%; justify-content: flex-end; }
+  #dieta-select, .dieta-nome-input { max-width: none; }
 }
 
 /* ---------- Toast di conferma ---------- */
