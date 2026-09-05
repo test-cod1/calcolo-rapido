@@ -510,6 +510,12 @@ function apriRinominaDieta() {
   dietaInRinomina = true;
   dietaNomeInput.value = state.nome;
   renderDiete();
+  // Il fuoco si prende qui, una volta sola. Il campo è nel markup fisso e non
+  // viene ricreato a ogni render (a differenza di quello delle giornate),
+  // quindi renderDiete non deve rimetterci mano: se lo facesse, un ridisegno
+  // qualsiasi durante la rinomina strapperebbe il fuoco da dov'è.
+  dietaNomeInput.focus();
+  dietaNomeInput.select();
 }
 
 function confermaRinominaDieta(valore) {
@@ -519,6 +525,15 @@ function confermaRinominaDieta(valore) {
   salvaStato();
   renderDiete();
   renderGiornata();
+}
+
+// Esce dalla rinomina lasciando il nome com'era. Il campo che si nasconde
+// perde il fuoco e fa scattare il "blur", ma quello controlla dietaInRinomina
+// e a quel punto lo trova già chiuso: non riscrive nulla.
+function annullaRinominaDieta() {
+  if (!dietaInRinomina) return;
+  chiudiRinominaDieta();
+  renderDiete();
 }
 
 function impostaColoreDieta(id) {
@@ -533,9 +548,7 @@ function renderDiete() {
 
   dietaSelect.classList.toggle("hidden", dietaInRinomina);
   dietaNomeInput.classList.toggle("hidden", !dietaInRinomina);
-  if (dietaInRinomina) {
-    if (document.activeElement !== dietaNomeInput) { dietaNomeInput.focus(); dietaNomeInput.select(); }
-  } else {
+  if (!dietaInRinomina) {
     dietaSelect.innerHTML = archivio.diete.map((d, i) =>
       `<option value="${i}"${i === archivio.dietaAttiva ? " selected" : ""}>${escapeHtml(d.nome)}</option>`
     ).join("");
@@ -1182,7 +1195,7 @@ function renderSchede() {
       return `
         <div class="giornata-scheda attiva in-rinomina">
           <input type="text" class="scheda-nome-input" id="scheda-nome-input" value="${escapeHtml(g.nome)}"
-                 maxlength="40" aria-label="Nome della giornata">
+                 maxlength="40" data-rinomina aria-label="Nome della giornata">
         </div>`;
     }
     const titolo = attiva
@@ -2033,13 +2046,23 @@ function collegaEventi() {
       e.preventDefault();
       dietaNomeInput.blur();
     } else if (e.key === "Escape") {
-      // Escape annulla la rinomina: con il campo vuoto il nome resta quello.
-      dietaNomeInput.value = "";
-      dietaNomeInput.blur();
+      // Escape esce senza rinominare, come per le schede delle giornate.
+      e.stopPropagation();
+      annullaRinominaDieta();
     }
   });
   dietaNomeInput.addEventListener("blur", () => {
     if (!dietaInRinomina) return;
+    confermaRinominaDieta(dietaNomeInput.value);
+  });
+
+  // Rete di sicurezza: la rinomina si chiude col "blur" del campo, e se quel
+  // blur non arrivasse (è successo nei test) resterebbe aperta per sempre, col
+  // menù delle diete nascosto e nessun modo di cambiare dieta. Un clic fuori
+  // dalla barra della dieta la chiude comunque. Nel caso normale il blur ha già
+  // fatto il suo lavoro e qui non resta niente da fare.
+  document.addEventListener("click", (e) => {
+    if (!dietaInRinomina || e.target.closest(".card-dieta")) return;
     confermaRinominaDieta(dietaNomeInput.value);
   });
 
@@ -2234,11 +2257,17 @@ function collegaEventi() {
   // scorciatoia resta quella del browser (annulla la digitazione). Se il campo
   // è vuoto l'annulla nativo non ha nulla da fare e la usiamo noi: è il caso
   // normale, perché dopo ogni inserimento il fuoco torna sulla ricerca vuota.
+  //
+  // I campi di rinomina (nome della dieta, nome della giornata) sono esclusi
+  // anche da vuoti: lì Ctrl+Z vuol dire "rimetti il testo che ho cancellato",
+  // e annullare invece l'ultima modifica alla giornata toglierebbe alimenti
+  // sotto gli occhi di chi sta guardando tutt'altro.
   document.addEventListener("keydown", (e) => {
     if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.key.toLowerCase() !== "z") return;
     const attivo = document.activeElement;
+    const inRinomina = attivo && attivo.dataset && attivo.dataset.rinomina !== undefined;
     const staScrivendo = attivo && ["INPUT", "TEXTAREA"].includes(attivo.tagName) && attivo.value !== "";
-    if (staScrivendo || !pilaAnnulla.length) return;
+    if (inRinomina || staScrivendo || !pilaAnnulla.length) return;
     e.preventDefault();
     annullaUltima();
   });

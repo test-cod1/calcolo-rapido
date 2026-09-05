@@ -80,7 +80,9 @@
       <span class="dieta-punto" aria-hidden="true"></span>
       <label class="dieta-etichetta" for="dieta-select">Dieta</label>
       <select id="dieta-select" aria-label="Dieta aperta"></select>
-      <input type="text" id="dieta-nome-input" class="dieta-nome-input hidden" maxlength="40" aria-label="Nome della dieta">
+      <!-- data-rinomina: in un campo di rinomina Ctrl+Z deve annullare la
+           digitazione, mai una modifica alla giornata (vedi la scorciatoia). -->
+      <input type="text" id="dieta-nome-input" class="dieta-nome-input hidden" maxlength="40" data-rinomina aria-label="Nome della dieta">
       <div class="dieta-azioni">
         <button type="button" id="dieta-rinomina-btn" class="dieta-azione" title="Rinomina questa dieta" aria-label="Rinomina questa dieta">✎</button>
         <button type="button" id="dieta-colore-btn" class="dieta-azione" title="Colore di questa dieta" aria-label="Colore di questa dieta" aria-haspopup="true" aria-expanded="false">🎨</button>
