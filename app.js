@@ -11,7 +11,7 @@
 // tema) vive nel localStorage di questo browser.
 // ---------------------------------------------------------------------------
 
-const PASTI = ["Colazione", "Spuntino mattina", "Pranzo", "Merenda", "Cena"];
+const PASTI = ["Colazione", "Spuntino mattina", "Pranzo", "Merenda", "Cena", "Spuntino serale"];
 const TEMA_KEY = "calcolo-rapido-tema";
 const CHIAVE_STATO = "rapido-stato-v1";
 const CHIAVE_ALIMENTI = "rapido-alimenti-v1";
