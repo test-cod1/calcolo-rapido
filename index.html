@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>Calcolo rapido</title>
+  <meta name="description" content="Compone la giornata alimentare e ne calcola calorie e macronutrienti, senza accesso e senza connessione.">
+
+  <meta name="theme-color" content="#2f6d4f">
+
+  <link rel="manifest" href="manifest.json">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-180.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Calcolo rapido">
+
+  <!-- Applica il tema salvato prima del rendering (evita il flash chiaro).
+       Non contiene logica applicativa. -->
+  <script src="tema-init.js"></script>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <header class="hero no-print">
+    <!-- Icone in SVG e non con i caratteri ☀/☾: quei glifi cambiano faccia da
+         un sistema all'altro (su Windows il sole diventa un asterisco). -->
+    <div class="tema-toggle" role="group" aria-label="Tema della pagina">
+      <button type="button" id="tema-chiaro-btn" class="tema-btn" title="Modalità giorno" aria-label="Modalità giorno" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <circle cx="12" cy="12" r="4.3" fill="currentColor"></circle>
+          <g fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+            <path d="M12 2v2.4M12 19.6V22M2 12h2.4M19.6 12H22"></path>
+            <path d="M4.9 4.9l1.7 1.7M17.4 17.4l1.7 1.7M19.1 4.9l-1.7 1.7M6.6 17.4l-1.7 1.7"></path>
+          </g>
+        </svg>
+      </button>
+      <button type="button" id="tema-notte-btn" class="tema-btn" title="Modalità notte" aria-label="Modalità notte" aria-pressed="false">
+        <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+          <path d="M20.3 14.9A8.6 8.6 0 0 1 9.1 3.7a8.6 8.6 0 1 0 11.2 11.2Z" fill="currentColor"></path>
+        </svg>
+      </button>
+    </div>
+    <h1>⚡ Calcolo rapido</h1>
+    <p class="hero-sub">Componi la giornata alimentare: i conti li facciamo noi</p>
+    <button type="button" id="installa-btn" class="hero-installa hidden">⤓ Installa come app</button>
+  </header>
+
+  <!-- Copia di un pasto in una o più altre giornate -->
+  <div id="copia-pasto-overlay" class="installa-overlay hidden no-print">
+    <div class="installa-modal">
+      <h3 id="copia-pasto-titolo">Copia il pasto</h3>
+      <p class="hint">Gli alimenti vengono <strong>aggiunti</strong> a quelli già presenti nello stesso pasto delle giornate scelte.</p>
+      <div id="copia-pasto-elenco" class="copia-pasto-elenco"></div>
+      <p id="copia-pasto-errore" class="error hidden">Scegli almeno una giornata.</p>
+      <div class="riga-bottoni">
+        <button type="button" id="copia-pasto-conferma-btn">Copia</button>
+        <button type="button" id="copia-pasto-annulla-btn" class="danger">Annulla</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Istruzioni per installare a mano: su iPhone/iPad non esiste un invito
+       automatico all'installazione, si passa dal menù Condividi. -->
+  <div id="installa-overlay" class="installa-overlay hidden no-print">
+    <div class="installa-modal">
+      <h3>Installa «Calcolo rapido»</h3>
+      <p class="installa-testo" id="installa-istruzioni"></p>
+      <p class="hint">Una volta installata si apre a schermo intero, con icona propria, e funziona anche senza connessione.</p>
+      <button type="button" id="installa-chiudi-btn">Ho capito</button>
+    </div>
+  </div>
+
+  <!-- ---------- Obiettivo calorico ---------- -->
+  <section class="card no-print">
+    <div class="obiettivo-riga">
+      <div class="campo campo-obiettivo">
+        <label for="obiettivo-input">Obiettivo calorie <span class="facolt">(facoltativo)</span></label>
+        <input type="number" id="obiettivo-input" min="0" step="10" placeholder="es. 1800" inputmode="numeric">
+      </div>
+      <div class="campo campo-obiettivo">
+        <label for="obiettivo-prot-input">Obiettivo proteine <span class="facolt">(g, facoltativo)</span></label>
+        <input type="number" id="obiettivo-prot-input" min="0" step="1" placeholder="es. 95" inputmode="numeric">
+      </div>
+      <button type="button" id="fabbisogno-toggle" class="secondary">🧮 Calcolali</button>
+    </div>
+
+    <div id="fabbisogno-box" class="fabbisogno-box hidden">
+      <p class="hint">Calorie stimate con la formula di Mifflin-St Jeor; proteine in grammi per chilo di peso corporeo.</p>
+      <div class="fabbisogno-griglia">
+        <div class="campo">
+          <label>Sesso</label>
+          <div class="segmented" id="sesso-gruppo">
+            <button type="button" data-sesso="M">Uomo</button>
+            <button type="button" data-sesso="F">Donna</button>
+          </div>
+        </div>
+        <div class="campo">
+          <label for="eta-input">Età</label>
+          <input type="number" id="eta-input" min="1" max="120" step="1" placeholder="anni" inputmode="numeric">
+        </div>
+        <div class="campo">
+          <label for="peso-input">Peso</label>
+          <input type="number" id="peso-input" min="1" max="400" step="0.1" placeholder="kg" inputmode="decimal">
+        </div>
+        <div class="campo">
+          <label for="altezza-input">Altezza</label>
+          <input type="number" id="altezza-input" min="50" max="250" step="1" placeholder="cm" inputmode="numeric">
+        </div>
+        <div class="campo campo-largo">
+          <label for="attivita-select">Livello di attività fisica</label>
+          <select id="attivita-select">
+            <option value="Sedentario">Sedentario (poco o nessun movimento)</option>
+            <option value="Leggero">Leggero (1–3 allenamenti a settimana)</option>
+            <option value="Moderato" selected>Moderato (3–5 allenamenti a settimana)</option>
+            <option value="Intenso">Intenso (6–7 allenamenti a settimana)</option>
+            <option value="Molto intenso">Molto intenso (lavoro fisico o doppi allenamenti)</option>
+          </select>
+        </div>
+        <div class="campo campo-largo">
+          <label for="deficit-input">Correzione calorica <span class="facolt">(negativa per dimagrire)</span></label>
+          <input type="number" id="deficit-input" step="50" placeholder="es. -500" inputmode="numeric">
+        </div>
+        <div class="campo campo-largo">
+          <label for="gkg-input">Proteine per kg di peso <span class="facolt">(g/kg)</span></label>
+          <input type="number" id="gkg-input" min="0" max="4" step="0.1" placeholder="1,4" inputmode="decimal">
+          <p class="hint" id="gkg-nota"></p>
+        </div>
+      </div>
+      <div id="fabbisogno-esito" class="fabbisogno-esito"></div>
+    </div>
+  </section>
+
+  <!-- ---------- Alimento + quantità ---------- -->
+  <section class="card no-print">
+    <h2><span class="passo">1</span> Scegli l'alimento</h2>
+
+    <div class="ricerca-riga">
+      <div class="autocomplete-wrapper">
+        <input type="text" id="food-input" placeholder="Inizia a scrivere: pasta, pollo, mela…" autocomplete="off">
+        <div id="suggestions" class="suggestions hidden"></div>
+      </div>
+      <button type="button" id="nuovo-alimento-btn" class="btn-icona" title="Aggiungi un alimento tuo" aria-label="Aggiungi un alimento tuo">+</button>
+    </div>
+    <p id="food-error" class="error hidden">Alimento non trovato: scegline uno dall'elenco che compare mentre scrivi.</p>
+
+    <div id="nuovo-alimento-form" class="nuovo-alimento-form hidden">
+      <h3>Nuovo alimento</h3>
+      <p class="hint">Valori per 100 g. Resta salvato solo su questo dispositivo, in questa modalità rapida.</p>
+      <label for="nuovo-nome">Nome</label>
+      <input type="text" id="nuovo-nome" placeholder="es. Pane di segale del forno">
+      <div class="nuovo-alimento-valori">
+        <div class="campo"><label for="nuovo-kcal">Calorie</label><input type="number" id="nuovo-kcal" min="0" step="0.1" inputmode="decimal"></div>
+        <div class="campo"><label for="nuovo-prot">Proteine</label><input type="number" id="nuovo-prot" min="0" step="0.1" inputmode="decimal"></div>
+        <div class="campo"><label for="nuovo-fat">Grassi</label><input type="number" id="nuovo-fat" min="0" step="0.1" inputmode="decimal"></div>
+        <div class="campo"><label for="nuovo-carb">Carboidrati</label><input type="number" id="nuovo-carb" min="0" step="0.1" inputmode="decimal"></div>
+      </div>
+      <p id="nuovo-alimento-error" class="error hidden">Servono il nome e tutti e quattro i valori (anche 0).</p>
+      <div class="riga-bottoni">
+        <button type="button" id="salva-alimento-btn">Salva alimento</button>
+        <button type="button" id="annulla-alimento-btn" class="danger">Annulla</button>
+      </div>
+    </div>
+
+    <div id="alimento-scelto" class="alimento-scelto hidden">
+      <div class="alimento-scelto-nome" id="alimento-scelto-nome"></div>
+      <div class="alimento-scelto-per100" id="alimento-scelto-per100"></div>
+      <button type="button" id="alimento-elimina-btn" class="alimento-elimina-btn hidden" title="Elimina questo alimento personalizzato" aria-label="Elimina questo alimento personalizzato">🗑</button>
+    </div>
+
+    <h2 class="passo-secondo"><span class="passo">2</span> Quanto?</h2>
+    <div class="segmented modo-calcolo" id="modo-gruppo">
+      <button type="button" data-modo="grammi">Da peso</button>
+      <button type="button" data-modo="kcal">Da calorie</button>
+      <button type="button" data-modo="proteine">Da proteine</button>
+    </div>
+
+    <div class="quantita-riga">
+      <input type="number" id="quantita-input" min="0" step="1" placeholder="es. 100" inputmode="decimal">
+      <span class="unita" id="quantita-unita">g</span>
+    </div>
+    <p class="hint" id="modo-nota">Scrivi i grammi: calcoliamo calorie e macronutrienti.</p>
+
+    <div id="preview" class="preview hidden">
+      <div class="preview-principale">
+        <span class="preview-kcal"><strong id="preview-kcal">0</strong> kcal</span>
+        <span class="preview-grammi" id="preview-grammi"></span>
+      </div>
+      <div class="preview-macro">
+        <span><strong id="preview-prot">0</strong> g proteine</span>
+        <span><strong id="preview-fat">0</strong> g grassi</span>
+        <span><strong id="preview-carb">0</strong> g carboidrati</span>
+      </div>
+    </div>
+
+    <label for="nota-input">Nota <span class="facolt">(facoltativa)</span></label>
+    <input type="text" id="nota-input" placeholder="es. cotto al vapore, a crudo…">
+
+    <div class="aggiungi-riga">
+      <select id="pasto-select" aria-label="Pasto in cui inserire l'alimento">
+        <option>Colazione</option>
+        <option>Spuntino mattina</option>
+        <option>Pranzo</option>
+        <option>Merenda</option>
+        <option>Cena</option>
+      </select>
+      <button type="button" id="aggiungi-btn" disabled>Aggiungi al pasto</button>
+    </div>
+  </section>
+
+  <!-- ---------- Giornata in costruzione ---------- -->
+  <section class="card" id="card-giornata">
+    <!-- Schede delle giornate, in stile browser: fino a 7, si passa dall'una
+         all'altra con un tocco. Un clic sulla scheda già aperta la rinomina. -->
+    <div class="giornate-barra no-print">
+      <div class="giornate-schede" id="giornate-schede" role="tablist" aria-label="Giornate"></div>
+      <button type="button" id="giornata-nuova-btn" class="giornata-nuova-btn" title="Aggiungi una giornata" aria-label="Aggiungi una giornata">+</button>
+    </div>
+
+    <div class="giornata-header no-print">
+      <h2>La giornata</h2>
+      <div class="giornata-azioni">
+        <!-- Con più giornate aperte, la freccetta accanto a Copia e Stampa
+             lascia scegliere fra la sola giornata aperta e tutte quante. -->
+        <div class="azione-doppia">
+          <button type="button" id="copia-btn" class="secondary">📋 Copia</button>
+          <button type="button" id="copia-menu-btn" class="secondary azione-caret hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Scegli cosa copiare">▾</button>
+          <div id="copia-menu" class="menu-azione hidden" role="menu"></div>
+        </div>
+        <div class="azione-doppia">
+          <button type="button" id="stampa-btn" class="secondary">🖨️ Stampa</button>
+          <button type="button" id="stampa-menu-btn" class="secondary azione-caret hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Scegli cosa stampare">▾</button>
+          <div id="stampa-menu" class="menu-azione hidden" role="menu"></div>
+        </div>
+        <button type="button" id="annulla-btn" class="secondary" disabled title="Niente da annullare" aria-label="Niente da annullare">↩ Annulla</button>
+        <button type="button" id="svuota-btn" class="danger">Svuota</button>
+      </div>
+    </div>
+    <div id="giornata-contenuto"></div>
+    <div id="totali-giorno"></div>
+  </section>
+
+  <p class="nota-finale no-print">
+    Applicazione indipendente: nulla di ciò che scrivi qui viene inviato o salvato online.
+    La giornata resta memorizzata solo in questo browser, finché non la svuoti.
+  </p>
+
+  <!-- Riepilogo sempre visibile mentre si compone -->
+  <div id="barra-totale" class="barra-totale no-print hidden" aria-live="polite"></div>
+
+  <!-- Contenuto generato solo per la stampa -->
+  <div id="area-stampa" class="area-stampa"></div>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <script src="app.js"></script>
+</body>
+</html>

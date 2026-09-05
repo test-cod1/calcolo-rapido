@@ -1,0 +1,38 @@
+{
+  "name": "Calcolo rapido",
+  "short_name": "Calcolo rapido",
+  "description": "Compone la giornata alimentare e ne calcola calorie e macronutrienti, senza accesso e senza connessione",
+  "id": "/calcolo-rapido/",
+  "start_url": "/calcolo-rapido/",
+  "scope": "/calcolo-rapido/",
+  "display": "standalone",
+  "background_color": "#eef6f1",
+  "theme_color": "#2f6d4f",
+  "lang": "it",
+  "icons": [
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

@@ -1,0 +1,3 @@
+# Helper locali per l'anteprima (non fanno parte del progetto)
+.claude/
+node_modules/

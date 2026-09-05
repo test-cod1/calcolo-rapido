@@ -1,0 +1,16 @@
+# Header di sicurezza applicati da Cloudflare Pages a tutte le risposte.
+# L'applicazione non contatta nessun servizio esterno: la policy è chiusa su
+# 'self'. Se dopo la pubblicazione qualcosa non carica, la causa più probabile
+# è una sorgente mancante qui: va aggiunta alla direttiva giusta, non rimossa
+# l'intera policy.
+/*
+  Content-Security-Policy: default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'; upgrade-insecure-requests
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  X-Frame-Options: DENY
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()
+  Cross-Origin-Opener-Policy: same-origin
+  # HSTS: forza HTTPS per un anno. "includeSubDomains" e "preload" non sono
+  # attivati di proposito — vanno aggiunti solo dopo essersi accertati che TUTTI
+  # i sottodomini del dominio siano serviti in HTTPS.
+  Strict-Transport-Security: max-age=31536000
