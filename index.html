@@ -60,6 +60,18 @@
     </div>
   </div>
 
+  <!-- Sostituzione di un alimento con uno equivalente della stessa categoria -->
+  <div id="sostituisci-overlay" class="installa-overlay hidden no-print">
+    <div class="installa-modal">
+      <h3 id="sostituisci-titolo">Sostituisci l'alimento</h3>
+      <p class="hint">Quantità calcolate per dare <strong>le stesse calorie</strong> della voce di partenza. Fra parentesi quanto cambiano gli altri valori.</p>
+      <div id="sostituisci-elenco" class="sostituisci-elenco"></div>
+      <div class="riga-bottoni">
+        <button type="button" id="sostituisci-annulla-btn" class="danger">Annulla</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Istruzioni per installare a mano: su iPhone/iPad non esiste un invito
        automatico all'installazione, si passa dal menù Condividi. -->
   <div id="installa-overlay" class="installa-overlay hidden no-print">
@@ -165,6 +177,23 @@
       </div>
       <div id="fabbisogno-esito" class="fabbisogno-esito"></div>
     </div>
+
+    <!-- Ripartizione delle calorie fra i pasti: dà a ogni pasto un obiettivo
+         proprio, invece della sola quota che ha preso. -->
+    <div class="ripartizione-riga">
+      <button type="button" id="ripartizione-toggle" class="secondary">🍽 Ripartizione per pasto</button>
+      <span id="ripartizione-stato" class="ripartizione-stato"></span>
+    </div>
+
+    <div id="ripartizione-box" class="fabbisogno-box hidden">
+      <p class="hint">Quanta parte delle calorie del giorno va a ogni pasto. La somma deve fare 100%. Gli obiettivi per pasto compaiono solo se è impostato anche l'obiettivo calorico della giornata.</p>
+      <div id="ripartizione-campi" class="ripartizione-campi"></div>
+      <p id="ripartizione-somma" class="ripartizione-somma"></p>
+      <div class="riga-bottoni">
+        <button type="button" id="ripartizione-tipica-btn" class="secondary">Valori tipici</button>
+        <button type="button" id="ripartizione-spegni-btn" class="danger">Non usarla</button>
+      </div>
+    </div>
   </section>
 
   <!-- ---------- Alimento + quantità ---------- -->
@@ -266,7 +295,9 @@
         </div>
         <div class="azione-doppia">
           <button type="button" id="stampa-btn" class="secondary">🖨️ Stampa</button>
-          <button type="button" id="stampa-menu-btn" class="secondary azione-caret hidden" aria-haspopup="menu" aria-expanded="false" aria-label="Scegli cosa stampare">▾</button>
+          <!-- Sempre visibile, anche con una sola giornata: da qui si sceglie
+               il foglio per il paziente. -->
+          <button type="button" id="stampa-menu-btn" class="secondary azione-caret" aria-haspopup="menu" aria-expanded="false" aria-label="Scegli cosa stampare">▾</button>
           <div id="stampa-menu" class="menu-azione hidden" role="menu"></div>
         </div>
         <button type="button" id="annulla-btn" class="secondary" disabled title="Niente da annullare" aria-label="Niente da annullare">↩ Annulla</button>

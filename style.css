@@ -464,6 +464,101 @@ button.danger:hover:not(:disabled) { background: var(--danger-hover); }
 }
 .fabbisogno-esito button { padding: 8px 14px; font-size: 0.9rem; }
 
+/* ---------- Ripartizione per pasto ---------- */
+
+.ripartizione-riga {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 12px;
+}
+.ripartizione-stato { font-size: 0.85rem; color: var(--text-muted); }
+.ripartizione-stato-errata { color: var(--danger-text); font-weight: 600; }
+#ripartizione-toggle.attivo {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.ripartizione-campi {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 10px;
+}
+.ripartizione-campo { display: flex; flex-direction: column; gap: 4px; }
+.ripartizione-input { display: flex; align-items: center; gap: 6px; }
+.ripartizione-input input { width: 100%; }
+.ripartizione-input span { color: var(--text-muted); font-size: 0.9rem; }
+.ripartizione-kcal { font-size: 0.82rem; color: var(--text-muted); }
+.ripartizione-somma { margin: 10px 0 0; font-size: 0.88rem; color: var(--text-muted); }
+.ripartizione-somma.error { color: var(--danger-text); font-weight: 600; }
+
+/* Confronto fra le calorie del pasto e quelle che gli spettano. Il colore
+   distingue i tre casi a colpo d'occhio; il testo resta comunque esplicito,
+   perché il colore da solo non basta a chi non lo distingue. */
+.pasto-obiettivo {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 1px 7px;
+  border-radius: 999px;
+  font-size: 0.76rem;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.pasto-in-linea { background: var(--accent-tint); color: var(--accent); }
+.pasto-oltre { background: var(--danger-tint); color: var(--danger-text); }
+.pasto-sotto { background: var(--surface-alt-2); color: var(--text-muted); }
+
+/* ---------- Sostituzioni equivalenti ---------- */
+
+.sostituisci-elenco {
+  max-height: 45vh;
+  overflow-y: auto;
+  margin: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.sostituisci-riga {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 2px 10px;
+  width: 100%;
+  text-align: left;
+  padding: 9px 12px;
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: var(--text);
+  font: inherit;
+  cursor: pointer;
+}
+.sostituisci-riga:hover { border-color: var(--accent); background: var(--accent-tint); }
+.sostituisci-nome { font-weight: 600; }
+.sostituisci-quantita { font-weight: 700; color: var(--accent); white-space: nowrap; }
+.sostituisci-delta {
+  grid-column: 1 / -1;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+}
+
+.riga-sostituisci {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 1rem;
+  padding: 2px 6px;
+  border-radius: 6px;
+}
+.riga-sostituisci:hover { color: var(--accent); background: var(--accent-tint); }
+
+.menu-separatore {
+  height: 1px;
+  margin: 4px 6px;
+  background: var(--border);
+}
+
 /* ---------- Selettori a segmenti ---------- */
 
 .segmented {
@@ -1201,6 +1296,11 @@ button.danger:hover:not(:disabled) { background: var(--danger-hover); }
     border-bottom: 1px solid #ddd;
   }
   .stampa-tabella th { font-size: 8.5pt; text-transform: uppercase; color: #555; }
+  /* Foglio del paziente: due sole colonne, alimento e quantità, con più aria
+     fra le righe perché si legge in cucina, non alla scrivania. */
+  .stampa-tabella-paziente { font-size: 11.5pt; }
+  .stampa-tabella-paziente td { padding: 2.5mm 2mm; }
+  .stampa-tabella-paziente td.num { font-weight: bold; white-space: nowrap; }
   .stampa-tabella td.num, .stampa-tabella th.num { text-align: right; }
   .stampa-totali {
     margin-top: 4mm;

@@ -49,6 +49,23 @@ const PERC_GRASSI_MAX = 45;
 // macronutriente alle calorie e viceversa.
 const KCAL_PER_G = { proteine: 4, grassi: 9, carboidrati: 4 };
 
+// Come distribuire le calorie della giornata fra i pasti, in percentuale.
+// È la ripartizione di uso comune (colazione abbondante, pranzo pasto
+// principale, cena più contenuta) e serve solo da punto di partenza: ogni
+// valore è modificabile e la somma deve tornare a 100.
+const RIPARTIZIONE_TIPICA = {
+  "Colazione": 20,
+  "Spuntino mattina": 5,
+  "Pranzo": 35,
+  "Merenda": 10,
+  "Cena": 25,
+  "Spuntino serale": 5
+};
+
+// Quanto ci si può discostare dall'obiettivo di un pasto prima di segnalarlo.
+// Il 15% evita di accendere un avviso per pochi grammi di differenza.
+const TOLLERANZA_PASTO = 0.15;
+
 // ---------- Stato ----------
 
 const MAX_GIORNATE = 7;
@@ -109,10 +126,49 @@ function creaDietaVuota(nome, colore) {
     obiettivoProteine: null,     // grammi di proteine obiettivo (null = nessuno)
     obiettivoGrassi: null,       // grammi di grassi obiettivo (null = nessuno)
     obiettivoCarboidrati: null,  // grammi di carboidrati obiettivo (null = nessuno)
+    // Percentuale di calorie per pasto, oppure null quando la ripartizione non
+    // è in uso: senza di essa i pasti mostrano solo la quota che hanno preso,
+    // senza un riferimento con cui confrontarla.
+    ripartizione: null,
     giornate: [creaGiornata("Giorno 1")],
     attiva: 0,
     profilo: { sesso: "", eta: "", peso: "", altezza: "", attivita: "Moderato", correzione: "", gPerKg: "", percGrassi: "" }
   };
+}
+
+// ---------- Ripartizione per pasto ----------
+
+function creaRipartizioneTipica() {
+  const r = {};
+  PASTI.forEach(p => { r[p] = RIPARTIZIONE_TIPICA[p] || 0; });
+  return r;
+}
+
+// Rilegge la ripartizione salvata pasto per pasto. Un pasto che non c'è più
+// (l'elenco dei pasti è cambiato una volta e può cambiare ancora) sparisce, e
+// uno nuovo parte da 0: meglio una quota a zero, visibile e correggibile, che
+// una percentuale inventata.
+function leggiRipartizione(salvata) {
+  if (!salvata || typeof salvata !== "object") return null;
+  const r = {};
+  PASTI.forEach(p => {
+    const v = Number(salvata[p]);
+    r[p] = v > 0 && v <= 100 ? v : 0;
+  });
+  return sommaRipartizione(r) > 0 ? r : null;
+}
+
+function sommaRipartizione(r) {
+  return PASTI.reduce((s, p) => s + (Number(r[p]) || 0), 0);
+}
+
+// Calorie previste per un pasto, o null se non c'è nulla con cui calcolarle:
+// serve sia la ripartizione sia l'obiettivo calorico della giornata.
+function obiettivoPasto(pasto) {
+  if (!state.ripartizione || !(state.obiettivo > 0)) return null;
+  const perc = Number(state.ripartizione[pasto]) || 0;
+  if (perc <= 0) return null;
+  return (state.obiettivo * perc) / 100;
 }
 
 function creaArchivioVuoto() {
@@ -171,6 +227,7 @@ let foodMap = new Map();        // chiave (nome originale) -> valori per 100 g
 let foodNames = [];             // chiavi ordinate per nome visualizzato
 let indiceRicerca = [];         // stesse voci, con i testi già normalizzati
 let displayToKey = new Map();   // nome visualizzato normalizzato -> chiave
+let categoriaDi = new Map();    // chiave -> categoria (solo per gli alimenti di base)
 let alimentoSelezionato = null; // { chiave, nome, per100 }
 let modoCalcolo = "grammi";     // grammi | kcal | proteine
 let calcoloCorrente = null;     // risultato mostrato nell'anteprima
@@ -201,6 +258,17 @@ const gkgInput = el("gkg-input");
 const gkgNota = el("gkg-nota");
 const percGrassiInput = el("perc-grassi-input");
 const percGrassiNota = el("perc-grassi-nota");
+const ripartizioneToggle = el("ripartizione-toggle");
+const ripartizioneStato = el("ripartizione-stato");
+const ripartizioneBox = el("ripartizione-box");
+const ripartizioneCampi = el("ripartizione-campi");
+const ripartizioneSomma = el("ripartizione-somma");
+const ripartizioneTipicaBtn = el("ripartizione-tipica-btn");
+const ripartizioneSpegniBtn = el("ripartizione-spegni-btn");
+const sostituisciOverlay = el("sostituisci-overlay");
+const sostituisciTitolo = el("sostituisci-titolo");
+const sostituisciElenco = el("sostituisci-elenco");
+const sostituisciAnnullaBtn = el("sostituisci-annulla-btn");
 const fabbisognoEsito = el("fabbisogno-esito");
 
 const foodInput = el("food-input");
@@ -391,6 +459,7 @@ function leggiDieta(salvata, nomePredefinito, colorePredefinito) {
   dieta.obiettivoProteine = Number(salvata.obiettivoProteine) > 0 ? Number(salvata.obiettivoProteine) : null;
   dieta.obiettivoGrassi = Number(salvata.obiettivoGrassi) > 0 ? Number(salvata.obiettivoGrassi) : null;
   dieta.obiettivoCarboidrati = Number(salvata.obiettivoCarboidrati) > 0 ? Number(salvata.obiettivoCarboidrati) : null;
+  dieta.ripartizione = leggiRipartizione(salvata.ripartizione);
   if (salvata.profilo && typeof salvata.profilo === "object") {
     Object.assign(dieta.profilo, salvata.profilo);
   }
@@ -579,6 +648,88 @@ function renderDiete() {
   dietaInfo.textContent = parti.join(" · ");
 }
 
+// ---------- Ripartizione per pasto: interfaccia ----------
+
+function renderRipartizione() {
+  const attiva = !!state.ripartizione;
+  ripartizioneToggle.classList.toggle("attivo", attiva);
+
+  if (!attiva) {
+    ripartizioneStato.textContent = "non impostata";
+    ripartizioneCampi.innerHTML = "";
+    ripartizioneSomma.textContent = "";
+    return;
+  }
+
+  const somma = sommaRipartizione(state.ripartizione);
+  const quadra = Math.abs(somma - 100) < 0.5;
+  ripartizioneStato.textContent = quadra
+    ? (state.obiettivo > 0 ? "attiva" : "attiva (manca l'obiettivo calorie)")
+    : `somma ${round1(somma)}%`;
+  ripartizioneStato.classList.toggle("ripartizione-stato-errata", !quadra);
+
+  ripartizioneCampi.innerHTML = PASTI.map(pasto => {
+    const perc = Number(state.ripartizione[pasto]) || 0;
+    const kcal = obiettivoPasto(pasto);
+    return `
+      <div class="campo ripartizione-campo">
+        <label for="rip-${slug(pasto)}">${pasto}</label>
+        <div class="ripartizione-input">
+          <input type="number" id="rip-${slug(pasto)}" data-pasto-perc="${escapeHtml(pasto)}"
+                 min="0" max="100" step="1" inputmode="numeric" value="${perc}">
+          <span>%</span>
+        </div>
+        <span class="ripartizione-kcal">${kcal ? `${arrotonda(kcal)} kcal` : "—"}</span>
+      </div>`;
+  }).join("");
+
+  ripartizioneSomma.textContent = quadra
+    ? `Somma: 100% ✓`
+    : `Somma: ${round1(somma)}% — deve fare 100%, correggi prima di fidarti degli obiettivi per pasto.`;
+  ripartizioneSomma.classList.toggle("error", !quadra);
+}
+
+// Aggiorna le calorie a fianco di ogni pasto e la riga della somma senza
+// ricreare i campi: mentre si digita una percentuale il fuoco deve restare
+// dov'è.
+function aggiornaEtichetteRipartizione() {
+  if (!state.ripartizione) return;
+  ripartizioneCampi.querySelectorAll("[data-pasto-perc]").forEach(campo => {
+    const kcal = obiettivoPasto(campo.dataset.pastoPerc);
+    const etichetta = campo.closest(".ripartizione-campo").querySelector(".ripartizione-kcal");
+    if (etichetta) etichetta.textContent = kcal ? `${arrotonda(kcal)} kcal` : "—";
+  });
+  const somma = sommaRipartizione(state.ripartizione);
+  const quadra = Math.abs(somma - 100) < 0.5;
+  ripartizioneSomma.textContent = quadra
+    ? "Somma: 100% ✓"
+    : `Somma: ${round1(somma)}% — deve fare 100%, correggi prima di fidarti degli obiettivi per pasto.`;
+  ripartizioneSomma.classList.toggle("error", !quadra);
+  ripartizioneStato.textContent = quadra
+    ? (state.obiettivo > 0 ? "attiva" : "attiva (manca l'obiettivo calorie)")
+    : `somma ${round1(somma)}%`;
+  ripartizioneStato.classList.toggle("ripartizione-stato-errata", !quadra);
+}
+
+// Identificatore utilizzabile in un attributo id a partire dal nome del pasto.
+function slug(testo) {
+  return normalizzaTesto(testo).replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+}
+
+function attivaRipartizione() {
+  state.ripartizione = creaRipartizioneTipica();
+  salvaStato();
+  renderGiornata();
+}
+
+function spegniRipartizione() {
+  state.ripartizione = null;
+  salvaStato();
+  ripartizioneBox.classList.add("hidden");
+  renderGiornata();
+  mostraToast("Ripartizione per pasto disattivata");
+}
+
 // ---------- Database alimenti ----------
 
 // `|| 0` difensivo: un valore mancante darebbe NaN e il NaN si propagherebbe in
@@ -597,7 +748,13 @@ function normalizzaPer100(a) {
 // CREA: eliminandone uno deve riaffiorare la voce di base, non sparire tutto.
 function ricostruisciElenco() {
   foodMap = new Map();
-  alimentiBase.forEach(a => foodMap.set(a.nome, normalizzaPer100(a)));
+  categoriaDi = new Map();
+  alimentiBase.forEach(a => {
+    foodMap.set(a.nome, normalizzaPer100(a));
+    // La categoria non serve al calcolo, ma senza di essa le sostituzioni
+    // proporrebbero un formaggio al posto di una verdura.
+    if (a.categoria) categoriaDi.set(a.nome, String(a.categoria));
+  });
   alimentiCustom.forEach(a => foodMap.set(a.nome, normalizzaPer100(a)));
 
   foodNames = Array.from(foodMap.keys()).sort((a, b) => formattaNome(a).localeCompare(formattaNome(b), "it"));
@@ -1022,10 +1179,29 @@ function rigaAlimentoHtml(voce, pasto, indice) {
              data-pasto="${escapeHtml(pasto)}" data-indice="${indice}" aria-label="Grammi di ${escapeHtml(voce.nome)}">
       <span class="riga-unita">g</span>
       <span class="riga-kcal">${v.kcal} kcal</span>
+      <button type="button" class="riga-sostituisci no-print" data-sostituisci-pasto="${escapeHtml(pasto)}" data-indice="${indice}"
+              title="Sostituisci con un alimento equivalente" aria-label="Sostituisci ${escapeHtml(voce.nome)}">⇄</button>
       <button type="button" class="riga-elimina" data-pasto="${escapeHtml(pasto)}" data-indice="${indice}"
               title="Togli dalla giornata" aria-label="Togli ${escapeHtml(voce.nome)} dalla giornata">✕</button>
     </div>
   `;
+}
+
+// Confronto fra le calorie di un pasto e quelle che la ripartizione gli
+// assegna. Fuori tolleranza il testo dice di quanto, così si sa se spostare
+// qualcosa o lasciar stare.
+function scartoPastoHtml(pasto, kcalPasto) {
+  const meta = obiettivoPasto(pasto);
+  if (!meta) return "";
+  const scarto = kcalPasto - meta;
+  const fuori = Math.abs(scarto) > meta * TOLLERANZA_PASTO;
+  const classe = fuori ? (scarto > 0 ? " pasto-oltre" : " pasto-sotto") : " pasto-in-linea";
+  const testo = !fuori
+    ? `in linea (${arrotonda(meta)})`
+    : scarto > 0
+      ? `+${arrotonda(scarto)} su ${arrotonda(meta)}`
+      : `−${arrotonda(-scarto)} su ${arrotonda(meta)}`;
+  return `<span class="pasto-obiettivo${classe}">${testo}</span>`;
 }
 
 function pastoHtml(pasto, kcalGiorno) {
@@ -1036,7 +1212,7 @@ function pastoHtml(pasto, kcalGiorno) {
     <div class="pasto" data-pasto="${escapeHtml(pasto)}">
       <div class="pasto-testata">
         <span class="pasto-nome">${pasto}</span>
-        <span class="pasto-kcal">${arrotonda(t.kcal)} kcal <span class="pasto-quota">(${quota}%)</span></span>
+        <span class="pasto-kcal">${arrotonda(t.kcal)} kcal <span class="pasto-quota">(${quota}%)</span>${scartoPastoHtml(pasto, t.kcal)}</span>
         <div class="pasto-azioni no-print">
           <button type="button" data-copia-pasto="${escapeHtml(pasto)}" title="Copia questo pasto come testo" aria-label="Copia ${pasto} come testo">📋</button>
           ${state.giornate.length > 1 ? `<button type="button" data-porta-pasto="${escapeHtml(pasto)}" title="Copia questo pasto in altre giornate" aria-label="Copia ${pasto} in altre giornate">→</button>` : ""}
@@ -1233,6 +1409,7 @@ function renderSchede() {
 
 function renderGiornata() {
   renderDiete();
+  renderRipartizione();
   renderSchede();
   aggiornaMenuAzioni();
   const t = totaliGiornata();
@@ -1262,7 +1439,7 @@ function aggiornaCalcoliUI() {
     const tp = totaliVoci(voci);
     const quota = t.kcal > 0 ? Math.round((tp.kcal / t.kcal) * 100) : 0;
     blocco.querySelector(".pasto-kcal").innerHTML =
-      `${arrotonda(tp.kcal)} kcal <span class="pasto-quota">(${quota}%)</span>`;
+      `${arrotonda(tp.kcal)} kcal <span class="pasto-quota">(${quota}%)</span>${scartoPastoHtml(pasto, tp.kcal)}`;
     blocco.querySelector(".pasto-macro").textContent =
       `${round1(tp.proteine)} g proteine · ${round1(tp.grassi)} g grassi · ${round1(tp.carboidrati)} g carboidrati`;
   });
@@ -1355,6 +1532,105 @@ function chiudiGiornata(indice) {
   }
   salvaStato();
   renderGiornata();
+}
+
+// ---------- Sostituzioni equivalenti ----------
+// Trova alimenti che, alla giusta quantità, danno le STESSE calorie di quello
+// già inserito. Le calorie sono il vincolo da rispettare (l'obiettivo della
+// giornata è calorico), le proteine il criterio per ordinare: fra due
+// alternative da 200 kcal, quella con proteine simili cambia meno il piano.
+
+const MAX_SOSTITUZIONI = 15;
+// Oltre mezzo chilo la sostituzione è teorica: nessuno mangia 800 g di zucchine
+// per pareggiare una fetta di formaggio.
+const MAX_GRAMMI_SOSTITUTO = 500;
+
+let sostituzioneInCorso = null;
+
+function candidatiSostituzione(chiaveOriginale, kcalDaPareggiare, per100Originale) {
+  const categoria = categoriaDi.get(chiaveOriginale) || null;
+  const candidati = [];
+
+  foodMap.forEach((per100, chiave) => {
+    if (chiave === chiaveOriginale) return;
+    // Senza categoria (alimenti personalizzati, o voce non riconosciuta) si
+    // cerca fra tutti: meglio qualche proposta in più che nessuna.
+    if (categoria && categoriaDi.get(chiave) !== categoria) return;
+    if (!(per100.kcal > 0)) return;
+
+    const grammi = Math.round((kcalDaPareggiare * 100) / per100.kcal);
+    if (grammi < 1 || grammi > MAX_GRAMMI_SOSTITUTO) return;
+
+    const v = calcolaVoce(per100, grammi);
+    candidati.push({
+      chiave, grammi, valori: v,
+      dProt: round1(v.proteine - per100Originale.proteine),
+      dFat: round1(v.grassi - per100Originale.grassi),
+      dCarb: round1(v.carboidrati - per100Originale.carboidrati)
+    });
+  });
+
+  candidati.sort((a, b) =>
+    (Math.abs(a.dProt) - Math.abs(b.dProt)) || (Math.abs(a.dCarb) - Math.abs(b.dCarb)));
+  return candidati.slice(0, MAX_SOSTITUZIONI);
+}
+
+function segno(n) {
+  return n > 0 ? `+${n}` : String(n);
+}
+
+function apriSostituzione(pasto, indice) {
+  const voce = vocePer(pasto, indice);
+  if (!voce) return;
+  const v = calcolaVoce(voce.per100, voce.grammi);
+  // La chiave del database si ricava dal nome mostrato: le voci salvate
+  // portano il nome già formattato, non la chiave originale.
+  const chiave = risolviChiave(voce.nome);
+  const candidati = candidatiSostituzione(chiave, v.kcal, v);
+
+  sostituzioneInCorso = { pasto, indice };
+  sostituisciTitolo.textContent = `Al posto di ${voce.nome} (${v.grammi} g, ${v.kcal} kcal)`;
+
+  if (!candidati.length) {
+    sostituisciElenco.innerHTML = `<p class="hint">Nessuna alternativa utile${categoriaDi.get(chiave) ? ` nella categoria «${escapeHtml(categoriaDi.get(chiave))}»` : ""}: servirebbero quantità troppo grandi per pareggiare le calorie.</p>`;
+  } else {
+    sostituisciElenco.innerHTML = candidati.map((c, i) => `
+      <button type="button" class="sostituisci-riga" data-sost="${i}">
+        <span class="sostituisci-nome">${escapeHtml(formattaNome(c.chiave))}</span>
+        <span class="sostituisci-quantita">${c.grammi} g</span>
+        <span class="sostituisci-delta">${segno(c.dProt)} P · ${segno(c.dFat)} G · ${segno(c.dCarb)} C</span>
+      </button>`).join("");
+    sostituisciElenco.dataset.candidati = JSON.stringify(
+      candidati.map(c => ({ chiave: c.chiave, grammi: c.grammi })));
+  }
+
+  sostituisciOverlay.classList.remove("hidden");
+}
+
+function chiudiSostituzione() {
+  sostituzioneInCorso = null;
+  sostituisciOverlay.classList.add("hidden");
+  sostituisciElenco.dataset.candidati = "[]";
+}
+
+function applicaSostituzione(indiceCandidato) {
+  if (!sostituzioneInCorso) return;
+  const candidati = JSON.parse(sostituisciElenco.dataset.candidati || "[]");
+  const scelto = candidati[indiceCandidato];
+  const { pasto, indice } = sostituzioneInCorso;
+  const voce = vocePer(pasto, indice);
+  if (!scelto || !voce || !foodMap.has(scelto.chiave)) return;
+
+  const nuovoNome = formattaNome(scelto.chiave);
+  registraAnnulla(conNomeGiornata(`sostituzione di ${voce.nome} con ${nuovoNome}`));
+  voce.nome = nuovoNome;
+  voce.grammi = scelto.grammi;
+  voce.per100 = foodMap.get(scelto.chiave);
+
+  chiudiSostituzione();
+  salvaStato();
+  renderGiornata();
+  mostraToast(`Sostituito con ${nuovoNome}`);
 }
 
 // ---------- Copia di un pasto in altre giornate ----------
@@ -1550,29 +1826,45 @@ function apriMenuAzione(menu, bottone, tipo) {
   if (giaAperto) return;
 
   const piene = state.giornate.filter(g => !pastiVuoti(g.pasti)).length;
+  const multipla = state.giornate.length > 1;
   const verbo = tipo === "copia" ? "Copia" : "Stampa";
-  menu.innerHTML = `
-    <button type="button" role="menuitem" data-ambito="giornata">${verbo} «${escapeHtml(giornataCorrente().nome)}»</button>
-    <button type="button" role="menuitem" data-ambito="tutte">${verbo} tutte le giornate (${piene})</button>
-  `;
+  const nome = escapeHtml(giornataCorrente().nome);
+
+  const voci = [`<button type="button" role="menuitem" data-ambito="giornata">${verbo} «${nome}»</button>`];
+  if (multipla) {
+    voci.push(`<button type="button" role="menuitem" data-ambito="tutte">${verbo} tutte le giornate (${piene})</button>`);
+  }
+  // Il foglio per il paziente esiste solo in stampa: negli appunti si incolla
+  // il testo di lavoro, con i numeri.
+  if (tipo === "stampa") {
+    voci.push(`<div class="menu-separatore" role="separator"></div>`);
+    voci.push(`<button type="button" role="menuitem" data-ambito="giornata" data-paziente="1">Per il paziente — «${nome}»</button>`);
+    if (multipla) {
+      voci.push(`<button type="button" role="menuitem" data-ambito="tutte" data-paziente="1">Per il paziente — tutte (${piene})</button>`);
+    }
+  }
+
+  menu.innerHTML = voci.join("");
   menu.classList.remove("hidden");
   bottone.setAttribute("aria-expanded", "true");
 }
 
 function aggiornaMenuAzioni() {
-  // Con una giornata sola non c'è niente da scegliere: la freccetta sparisce.
+  // Con una giornata sola la copia non ha scelte da offrire e la freccetta
+  // sparisce. La stampa invece resta: il foglio per il paziente si sceglie da
+  // lì anche quando la giornata è una sola.
   const multipla = state.giornate.length > 1;
   copiaMenuBtn.classList.toggle("hidden", !multipla);
-  stampaMenuBtn.classList.toggle("hidden", !multipla);
-  if (!multipla) chiudiMenuAzioni();
+  if (!multipla) copiaMenu.classList.add("hidden");
 }
 
 function copiaGiornataAperta() {
   copiaTesto(testoGiornata(), "Giornata copiata negli appunti");
 }
 
-function stampa(ambito) {
+function stampa(ambito, perPaziente) {
   ambitoStampa = ambito;
+  stampaPerPaziente = !!perPaziente;
   if (!costruisciAreaStampa()) {
     mostraToast(ambito === "tutte" ? "Non c'è ancora nulla da stampare" : "La giornata è vuota");
     return;
@@ -1599,6 +1891,46 @@ function intestazioneStampa(titolo) {
   return `
     <h1 class="stampa-titolo">${titolo}</h1>
     <p class="stampa-meta">${dieta}Calcolo rapido del ${new Date().toLocaleDateString("it-IT")}${obiettivo}</p>`;
+}
+
+// Intestazione del foglio per il paziente: niente obiettivi calorici, che sul
+// suo foglio non hanno posto. Resta il nome della dieta, che serve a non
+// confondere due piani, e la data.
+function intestazionePaziente(titolo) {
+  const dieta = archivio.diete.length > 1 ? `${escapeHtml(state.nome)} · ` : "";
+  return `
+    <h1 class="stampa-titolo">${titolo}</h1>
+    <p class="stampa-meta">${dieta}${new Date().toLocaleDateString("it-IT")}</p>`;
+}
+
+// Foglio per il paziente: che cosa mangiare e quanto, e basta. Niente calorie,
+// niente macronutrienti, niente obiettivi — sono numeri che servono a chi
+// scrive la dieta e che sul foglio di chi la segue creano solo ansia o
+// discussioni. Restano le note, perché dicono come preparare il piatto.
+function bloccoPazienteGiornata(giornata, conNome) {
+  const pasti = PASTI.filter(p => giornata.pasti[p].length > 0).map(pasto => {
+    const righe = giornata.pasti[pasto].map(voce => {
+      const v = calcolaVoce(voce.per100, voce.grammi);
+      const nota = voce.nota ? ` <em>(${escapeHtml(voce.nota)})</em>` : "";
+      return `<tr>
+        <td>${escapeHtml(voce.nome)}${nota}</td>
+        <td class="num">${v.grammi} g</td>
+      </tr>`;
+    }).join("");
+    return `
+      <div class="stampa-pasto">
+        <h3><span>${pasto}</span></h3>
+        <table class="stampa-tabella stampa-tabella-paziente">
+          <tbody>${righe}</tbody>
+        </table>
+      </div>`;
+  }).join("");
+
+  return `
+    <div class="stampa-giornata">
+      ${conNome ? `<h2 class="stampa-giornata-titolo">${escapeHtml(giornata.nome)}</h2>` : ""}
+      ${pasti}
+    </div>`;
 }
 
 // Blocco stampabile di una giornata: i pasti con i loro alimenti e il totale.
@@ -1644,6 +1976,10 @@ function bloccoStampaGiornata(giornata, conNome) {
 // Ambito dell'ultima stampa richiesta: serve anche a "beforeprint", così
 // ristampando con Ctrl+P si riottiene quello che si era scelto.
 let ambitoStampa = "giornata";
+// Foglio per il paziente invece di quello di lavoro. È una variabile a parte e
+// non un terzo ambito, così le due scelte (quali giornate, e per chi) restano
+// indipendenti.
+let stampaPerPaziente = false;
 
 function costruisciAreaStampa() {
   const tutte = ambitoStampa === "tutte";
@@ -1658,6 +1994,12 @@ function costruisciAreaStampa() {
   const titolo = tutte
     ? `Piano alimentare — ${giornate.length} giornate`
     : `Giornata alimentare${conNome ? " — " + escapeHtml(giornataCorrente().nome) : ""}`;
+
+  if (stampaPerPaziente) {
+    areaStampa.innerHTML = intestazionePaziente(titolo) +
+      giornate.map(g => bloccoPazienteGiornata(g, conNome)).join("");
+    return true;
+  }
 
   let riepilogo = "";
   if (tutte) {
@@ -1957,6 +2299,36 @@ function collegaEventi() {
     renderGiornata();
   });
 
+  // Ripartizione per pasto
+  ripartizioneToggle.addEventListener("click", () => {
+    const aperto = !ripartizioneBox.classList.contains("hidden");
+    ripartizioneBox.classList.toggle("hidden", aperto);
+    // Aprendola la prima volta la si accende con i valori tipici: un pannello
+    // di caselle vuote non direbbe da dove cominciare.
+    if (!aperto && !state.ripartizione) attivaRipartizione();
+    else renderRipartizione();
+  });
+
+  ripartizioneTipicaBtn.addEventListener("click", () => {
+    attivaRipartizione();
+    mostraToast("Ripartizione riportata ai valori tipici");
+  });
+
+  ripartizioneSpegniBtn.addEventListener("click", spegniRipartizione);
+
+  // Delega: i campi vengono ricreati a ogni render.
+  ripartizioneCampi.addEventListener("input", (e) => {
+    const campo = e.target.closest("[data-pasto-perc]");
+    if (!campo || !state.ripartizione) return;
+    const pasto = campo.dataset.pastoPerc;
+    const v = Number(campo.value);
+    state.ripartizione[pasto] = v >= 0 && v <= 100 ? v : 0;
+    salvaStato();
+    // Solo i numeri: ridisegnare i campi mentre si scrive perderebbe il fuoco.
+    aggiornaEtichetteRipartizione();
+    aggiornaCalcoliUI();
+  });
+
   fabbisognoToggle.addEventListener("click", () => {
     const aperto = !fabbisognoBox.classList.contains("hidden");
     fabbisognoBox.classList.toggle("hidden", aperto);
@@ -2192,6 +2564,11 @@ function collegaEventi() {
       rimuoviVoce(elimina.dataset.pasto, Number(elimina.dataset.indice));
       return;
     }
+    const sostituisci = e.target.closest("[data-sostituisci-pasto]");
+    if (sostituisci) {
+      apriSostituzione(sostituisci.dataset.sostituisciPasto, Number(sostituisci.dataset.indice));
+      return;
+    }
     const copia = e.target.closest("[data-copia-pasto]");
     if (copia) {
       copiaTesto(testoPasto(copia.dataset.copiaPasto), "Pasto copiato");
@@ -2209,7 +2586,7 @@ function collegaEventi() {
   // Azioni sulla giornata: il clic diretto agisce sulla giornata aperta, la
   // freccetta lascia scegliere "tutte" (compare solo con più schede).
   copiaBtn.addEventListener("click", () => copiaGiornataAperta());
-  stampaBtn.addEventListener("click", () => stampa("giornata"));
+  stampaBtn.addEventListener("click", () => stampa("giornata", false));
   window.addEventListener("beforeprint", costruisciAreaStampa);
 
   copiaMenuBtn.addEventListener("click", (e) => {
@@ -2231,7 +2608,7 @@ function collegaEventi() {
         if (tutte) copiaTesto(testoTutteLeGiornate(), "Tutte le giornate copiate negli appunti");
         else copiaGiornataAperta();
       } else {
-        stampa(tutte ? "tutte" : "giornata");
+        stampa(tutte ? "tutte" : "giornata", voce.dataset.paziente === "1");
       }
     });
   });
@@ -2249,6 +2626,19 @@ function collegaEventi() {
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") chiudiCopiaPasto();
+  });
+
+  // Sostituzioni equivalenti
+  sostituisciAnnullaBtn.addEventListener("click", chiudiSostituzione);
+  sostituisciOverlay.addEventListener("click", (e) => {
+    if (e.target === sostituisciOverlay) chiudiSostituzione();
+  });
+  sostituisciElenco.addEventListener("click", (e) => {
+    const riga = e.target.closest("[data-sost]");
+    if (riga) applicaSostituzione(Number(riga.dataset.sost));
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") chiudiSostituzione();
   });
   svuotaBtn.addEventListener("click", svuotaGiornata);
   annullaBtn.addEventListener("click", annullaUltima);

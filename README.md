@@ -56,6 +56,32 @@ Se proteine e grassi richiesti superano da soli le calorie disponibili, i
 carboidrati restano a 0 e l'app lo segnala invece di mostrare un numero
 negativo.
 
+### Ripartizione per pasto
+
+Facoltativa, propria di ogni dieta. Assegna a ogni pasto una quota delle calorie
+del giorno (per difetto 20/5/35/10/25/5, somma 100%) e ogni pasto guadagna un
+obiettivo suo: la testata dice «in linea», «+120 su 400» o «−90 su 400». Oltre
+il 15% di scostamento la pastiglia cambia colore.
+
+Serve anche l'obiettivo calorico della giornata: senza, le percentuali non si
+possono tradurre in calorie e l'app lo dice.
+
+### Sostituzioni equivalenti
+
+Il pulsante ⇄ su ogni riga propone alimenti che, alla giusta quantità, danno le
+**stesse calorie** di quello inserito. Le proposte restano nella categoria
+dell'alimento di partenza — un formaggio al posto di una verdura non è una
+sostituzione — e sono ordinate per differenza di proteine, mostrata insieme a
+quella di grassi e carboidrati. Un alimento personalizzato non ha categoria: in
+quel caso si cerca fra tutti. Escluse le quantità sopra i 500 g, che sono
+equivalenze solo sulla carta.
+
+### Stampa per il paziente
+
+Dal menù ▾ accanto a «Stampa». Foglio con i soli alimenti, le quantità e le
+note: niente calorie, macronutrienti o obiettivi, che servono a chi la dieta la
+scrive. Testo più grande, perché si legge in cucina.
+
 ## File
 
 | File | Ruolo |
