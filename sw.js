@@ -12,8 +12,13 @@
 // sono chiamate di rete verso l'esterno né dati da proteggere, perché tutto
 // quello che l'utente scrive resta nel localStorage del browser.
 
+// Prefisso dei nomi delle nostre cache. Serve a riconoscerle: su GitHub Pages
+// tutti i progetti dello stesso account stanno sullo stesso dominio, e lo
+// spazio delle cache è per dominio, non per cartella. Senza questo prefisso la
+// pulizia all'activate porterebbe via anche le cache degli altri siti.
+const CACHE_PREFISSO = "calcolo-rapido-";
 const CACHE_VERSION = "v1";
-const SHELL_CACHE = `calcolo-rapido-${CACHE_VERSION}`;
+const SHELL_CACHE = `${CACHE_PREFISSO}${CACHE_VERSION}`;
 
 // File indispensabili: precaricati all'installazione (addAll è atomico, se ne
 // manca uno l'installazione fallisce e verrà ritentata).
@@ -49,8 +54,11 @@ self.addEventListener("install", evento => {
 self.addEventListener("activate", evento => {
   evento.waitUntil((async () => {
     const nomi = await caches.keys();
+    // Solo le NOSTRE cache vecchie: quelle che non cominciano col prefisso
+    // appartengono ad altri siti dello stesso dominio e non vanno toccate.
     await Promise.all(
-      nomi.filter(n => n !== SHELL_CACHE).map(n => caches.delete(n))
+      nomi.filter(n => n.startsWith(CACHE_PREFISSO) && n !== SHELL_CACHE)
+          .map(n => caches.delete(n))
     );
     await self.clients.claim();
   })());

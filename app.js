@@ -773,7 +773,13 @@ function ricostruisciElenco() {
 async function caricaAlimenti() {
   try {
     const risposta = await fetch("foods.json");
-    alimentiBase = await risposta.json();
+    // Senza questo controllo una risposta d'errore in formato JSON passerebbe
+    // per buona: il messaggio qui sotto non comparirebbe e la ricerca
+    // resterebbe vuota senza spiegazione.
+    if (!risposta.ok) throw new Error(`foods.json: risposta ${risposta.status}`);
+    const dati = await risposta.json();
+    if (!Array.isArray(dati)) throw new Error("foods.json non contiene un elenco di alimenti");
+    alimentiBase = dati;
   } catch (e) {
     alimentiBase = [];
     erroreCaricamentoAlimenti = true;
@@ -2508,8 +2514,16 @@ function collegaEventi() {
     };
   });
 
-  // Mentre si digita: aggiorniamo solo i numeri. Il campo vuoto viene ignorato,
-  // altrimenti cancellare "150" per riscrivere "200" farebbe sparire la riga.
+  // Mentre si digita: aggiorniamo solo i numeri a video. Il campo vuoto viene
+  // ignorato, altrimenti cancellare "150" per riscrivere "200" farebbe sparire
+  // la riga.
+  //
+  // NON si salva a ogni tasto. Correggendo 150 in 200 si passa per "2", e
+  // salvarlo significherebbe lasciare 2 g nella dieta se in quel momento la
+  // pagina viene chiusa o messa in secondo piano — senza nemmeno un passo di
+  // «Annulla», che viene registrato solo alla conferma. Il valore in memoria
+  // serve a mostrare i totali aggiornati; su disco ci va alla conferma, dove
+  // c'è anche l'annullamento.
   giornataContenuto.addEventListener("input", (e) => {
     const campo = e.target.closest(".riga-grammi");
     if (!campo) return;
@@ -2517,7 +2531,6 @@ function collegaEventi() {
     const valore = Math.max(0, Math.round(Number(campo.value) || 0));
     if (!voce || !valore) return;
     voce.grammi = valore;
-    salvaStato();
     aggiornaCalcoliUI();
   });
 
@@ -2542,6 +2555,12 @@ function collegaEventi() {
       return;
     }
     if (!(valore > 0)) {
+      // "Si rimette il valore di prima" va fatto davvero: l'handler "input" ha
+      // già cambiato il peso in memoria per tenere aggiornati i totali mentre
+      // si digitava, quindi ridisegnare e basta lascerebbe a video l'ultima
+      // cifra battuta invece del peso di partenza.
+      const originale = modificaPesoInCorso ? Math.round(Number(modificaPesoInCorso.valore)) : NaN;
+      if (originale > 0) voce.grammi = originale;
       modificaPesoInCorso = null;
       renderGiornata();
       return;
