@@ -186,8 +186,9 @@ categoria, il codice dell'alimento e — dove c'è — il nome scientifico. La
 categoria serve alle sostituzioni equivalenti; il codice non è ancora usato e
 servirà a identificare l'alimento quando la tabella verrà aggiornata.
 
-Sui **62 liquidi** c'è in più il campo `densita` (g/ml), aggiunto a mano: non
-viene dal foglio di partenza. Vedi «Millilitri per i liquidi».
+Su **93 alimenti** ci sono in più i campi delle misure casalinghe, aggiunti a
+mano e non presenti nel foglio di partenza: `densita` (g/ml) sui 63 liquidi e
+`gCucchiaio` sui 30 che si dosano col cucchiaio. Vedi «Misure casalinghe».
 
 Un valore a **−2 significa «dato non disponibile»**, non zero: è la convenzione
 del foglio di partenza. Sono 41 alimenti (per esempio i carboidrati del
