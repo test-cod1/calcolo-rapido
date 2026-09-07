@@ -242,6 +242,7 @@ let indiceRicerca = [];         // stesse voci, con i testi già normalizzati
 let displayToKey = new Map();   // nome visualizzato normalizzato -> chiave
 let categoriaDi = new Map();    // chiave -> categoria (solo per gli alimenti di base)
 let densitaDi = new Map();      // chiave -> g/ml, solo per i liquidi
+let cucchiaioDi = new Map();    // chiave -> grammi in un cucchiaio raso
 let alimentoSelezionato = null; // { chiave, nome, per100 }
 let modoCalcolo = "grammi";     // grammi | kcal | proteine
 let calcoloCorrente = null;     // risultato mostrato nell'anteprima
@@ -307,7 +308,7 @@ const alimentoEliminaBtn = el("alimento-elimina-btn");
 const modoGruppo = el("modo-gruppo");
 const quantitaInput = el("quantita-input");
 const quantitaUnita = el("quantita-unita");
-const unitaGruppo = el("unita-gruppo");
+const unitaSelect = el("unita-select");
 const modoNota = el("modo-nota");
 
 const preview = el("preview");
@@ -689,25 +690,64 @@ function renderDiete() {
   dietaInfo.textContent = parti.join(" · ");
 }
 
-// ---------- Millilitri per i liquidi ----------
-// I valori nutrizionali della tabella sono per 100 GRAMMI, sempre. I
-// millilitri non sono un'altra etichetta per la stessa cosa: 100 ml di olio
-// pesano 91 g, cioè 81 kcal in meno di 100 g. Quindi il grammo resta l'unità
-// dei conti, e i millilitri sono ciò che si scrive e si legge, convertiti con
-// la densità dell'alimento.
+// ---------- Misure casalinghe ----------
+// I valori della tabella sono per 100 GRAMMI, sempre. Millilitri, cucchiai e
+// bicchieri non sono altre etichette per la stessa cosa: 100 ml di olio pesano
+// 91 g, cioè 81 kcal in meno di 100 g. Il grammo resta quindi l'unità dei
+// conti, e la misura casalinga è ciò che si scrive e si legge.
 //
-// Le densità non vengono dal CREA, che non le pubblica: sono valori di
-// riferimento standard a 20 °C, annotati in foods.json sui soli liquidi.
+// Due strade per arrivare ai grammi, perché sono due problemi diversi:
+//   - i LIQUIDI hanno una densità: un cucchiaio è 15 ml di quel liquido, un
+//     bicchiere 200 ml, e il peso si ricava moltiplicando;
+//   - i SOLIDI no. Un cucchiaio di farina pesa 9 g, non 15: fra i granelli
+//     c'è aria, e la densità apparente non si deduce da nulla. Per loro
+//     foods.json porta direttamente i grammi di un cucchiaio raso.
+// Il bicchiere esiste solo per i liquidi: un bicchiere di farina non è una
+// misura che qualcuno usi in cucina.
+//
+// Nessuno di questi valori viene dal CREA, che non li pubblica: sono
+// riferimenti d'uso comune, con il volume del cucchiaio preso a 15 ml.
 
-// Unità scelta nel riquadro di inserimento ("g" oppure "ml").
+const ML_CUCCHIAIO = 15;
+const ML_BICCHIERE = 200;
+
+// nome: singolare e plurale, per scrivere "1 cucchiaio" e "2 cucchiai".
+const MISURE = {
+  g:          { uno: "g", molti: "g", passo: 1 },
+  ml:         { uno: "ml", molti: "ml", passo: 1 },
+  cucchiaio:  { uno: "cucchiaio", molti: "cucchiai", passo: 0.5 },
+  bicchiere:  { uno: "bicchiere", molti: "bicchieri", passo: 0.5 }
+};
+
+// Unità scelta nel riquadro di inserimento.
 let unitaCorrente = "g";
 
-function grammiDaMl(ml, densita) {
-  return ml * densita;
+// Quali misure può usare un alimento, in ordine di comodità.
+function misureDisponibili(densita, gCucchiaio) {
+  if (densita > 0) return ["ml", "cucchiaio", "bicchiere", "g"];
+  if (gCucchiaio > 0) return ["cucchiaio", "g"];
+  return ["g"];
 }
 
-function mlDaGrammi(grammi, densita) {
-  return grammi / densita;
+// Grammi corrispondenti a una quantità espressa in una misura. Restituisce
+// null quando la conversione non è possibile: meglio niente che un numero
+// inventato.
+function grammiDaMisura(quantita, unita, densita, gCucchiaio) {
+  if (!(quantita > 0)) return null;
+  if (unita === "g") return quantita;
+  if (unita === "ml") return densita > 0 ? quantita * densita : null;
+  if (unita === "bicchiere") return densita > 0 ? quantita * ML_BICCHIERE * densita : null;
+  if (unita === "cucchiaio") {
+    if (densita > 0) return quantita * ML_CUCCHIAIO * densita;
+    return gCucchiaio > 0 ? quantita * gCucchiaio : null;
+  }
+  return null;
+}
+
+// Il percorso inverso, per riscrivere un peso nella misura scelta.
+function misuraDaGrammi(grammi, unita, densita, gCucchiaio) {
+  const perUno = grammiDaMisura(1, unita, densita, gCucchiaio);
+  return perUno > 0 ? grammi / perUno : null;
 }
 
 // Numeri all'italiana, senza decimali inutili: 250 ml, non "250,0 ml".
@@ -715,29 +755,48 @@ function fmtNumero(n) {
   return Number(n).toLocaleString("it-IT");
 }
 
+function etichettaMisura(unita, quantita) {
+  const m = MISURE[unita] || MISURE.g;
+  return Math.abs(quantita) === 1 ? m.uno : m.molti;
+}
+
 // Quantità e unità di una voce già inserita, per mostrarla come è stata
-// scritta. Una voce salvata prima di questa funzione non ha unità: è in grammi.
+// scritta. Una voce salvata prima delle misure casalinghe non ha unità: è in
+// grammi.
 function quantitaVoce(voce) {
-  if (voce.unita === "ml" && Number(voce.densita) > 0) {
-    const ml = Number(voce.ml) > 0 ? Number(voce.ml) : mlDaGrammi(voce.grammi, voce.densita);
-    return { valore: round1(ml), unita: "ml" };
+  const unita = voce.unita;
+  if (unita && unita !== "g" && MISURE[unita]) {
+    const q = Number(voce.quantita) > 0
+      ? Number(voce.quantita)
+      : misuraDaGrammi(voce.grammi, unita, voce.densita, voce.gCucchiaio);
+    if (q > 0) return { valore: round1(q), unita };
   }
   return { valore: voce.grammi, unita: "g" };
 }
 
 function testoQuantitaVoce(voce) {
   const q = quantitaVoce(voce);
-  return `${fmtNumero(q.valore)} ${q.unita}`;
+  return `${fmtNumero(q.valore)} ${etichettaMisura(q.unita, q.valore)}`;
 }
 
-// Rilegge dal salvataggio i campi dell'unità, scartando quello che non torna:
-// senza densità i millilitri non si possono convertire, quindi si torna ai
-// grammi invece di mostrare un valore inventato.
+// Rilegge dal salvataggio i campi della misura, scartando quello che non torna:
+// senza densità o grammi-per-cucchiaio la conversione non si può fare, e si
+// torna ai grammi invece di mostrare un valore inventato.
 function leggiUnita(v) {
-  const densita = Number(v && v.densita);
-  if (!(densita > 0) || (v && v.unita) !== "ml") return {};
-  const ml = Number(v.ml);
-  return ml > 0 ? { unita: "ml", densita, ml } : { unita: "ml", densita };
+  if (!v || typeof v !== "object") return {};
+  const densita = Number(v.densita) > 0 ? Number(v.densita) : undefined;
+  const gCucchiaio = Number(v.gCucchiaio) > 0 ? Number(v.gCucchiaio) : undefined;
+  const base = {};
+  if (densita) base.densita = densita;
+  if (gCucchiaio) base.gCucchiaio = gCucchiaio;
+
+  const unita = v.unita;
+  if (!unita || unita === "g" || !MISURE[unita]) return base;
+  // "ml" era l'unico campo delle prime versioni: vale come quantità.
+  const quantita = Number(v.quantita) > 0 ? Number(v.quantita)
+    : (unita === "ml" && Number(v.ml) > 0 ? Number(v.ml) : 0);
+  if (!(grammiDaMisura(1, unita, densita, gCucchiaio) > 0)) return base;
+  return quantita > 0 ? { ...base, unita, quantita } : { ...base, unita };
 }
 
 // ---------- Copia di sicurezza su file ----------
@@ -1011,10 +1070,12 @@ function ricostruisciElenco() {
   foodMap = new Map();
   categoriaDi = new Map();
   densitaDi = new Map();
+  cucchiaioDi = new Map();
   alimentiBase.forEach(a => {
     foodMap.set(a.nome, normalizzaPer100(a));
     // Densità: presente solo sui liquidi, è ciò che abilita i millilitri.
     if (Number(a.densita) > 0) densitaDi.set(a.nome, Number(a.densita));
+    if (Number(a.gCucchiaio) > 0) cucchiaioDi.set(a.nome, Number(a.gCucchiaio));
     // La categoria non serve al calcolo, ma senza di essa le sostituzioni
     // proporrebbero un formaggio al posto di una verdura.
     if (a.categoria) categoriaDi.set(a.nome, String(a.categoria));
@@ -1154,45 +1215,67 @@ function selezionaAlimento(chiave) {
   } else {
     const per100 = foodMap.get(chiave);
     const densita = densitaDi.get(chiave) || null;
-    alimentoSelezionato = { chiave, nome: formattaNome(chiave), per100, densita };
+    const gCucchiaio = cucchiaioDi.get(chiave) || null;
+    alimentoSelezionato = { chiave, nome: formattaNome(chiave), per100, densita, gCucchiaio };
     alimentoSceltoNome.textContent = alimentoSelezionato.nome;
-    // Per un liquido si dice subito quanto pesano 100 ml: è la conversione che
-    // l'app applica, e vederla scritta evita di doversi fidare al buio.
-    const conversione = densita ? ` · 100 ml = ${round1(grammiDaMl(100, densita))} g` : "";
+    // Le conversioni si dicono subito: sono quelle che l'app applica, e vederle
+    // scritte evita di doversi fidare al buio.
+    const pesoCucchiaio = grammiDaMisura(1, "cucchiaio", densita, gCucchiaio);
+    const conversione = [
+      densita ? `100 ml = ${round1(grammiDaMisura(100, "ml", densita, gCucchiaio))} g` : "",
+      pesoCucchiaio ? `1 cucchiaio = ${round1(pesoCucchiaio)} g` : "",
+      densita ? `1 bicchiere = ${round1(grammiDaMisura(1, "bicchiere", densita, gCucchiaio))} g` : ""
+    ].filter(Boolean).join(" · ");
     alimentoSceltoPer100.textContent =
-      `per 100 g: ${round1(per100.kcal)} kcal · ${round1(per100.proteine)} P · ${round1(per100.grassi)} G · ${round1(per100.carboidrati)} C${conversione}`;
+      `per 100 g: ${round1(per100.kcal)} kcal · ${round1(per100.proteine)} P · ${round1(per100.grassi)} G · ${round1(per100.carboidrati)} C` +
+      (conversione ? ` — ${conversione}` : "");
     alimentoEliminaBtn.classList.toggle("hidden", !ePersonalizzato(chiave));
     alimentoScelto.classList.remove("hidden");
   }
-  // I liquidi partono in millilitri, che è il modo in cui li si misura davvero;
-  // i solidi restano ai grammi. Il selettore permette comunque di cambiare.
-  unitaCorrente = (alimentoSelezionato && alimentoSelezionato.densita) ? "ml" : "g";
+  // Si parte dalla misura più naturale per quell'alimento: millilitri per i
+  // liquidi, cucchiai per zucchero, farina e affini, grammi per tutto il resto.
+  // Il selettore permette comunque di cambiare.
+  unitaCorrente = alimentoSelezionato
+    ? misureDisponibili(alimentoSelezionato.densita, alimentoSelezionato.gCucchiaio)[0]
+    : "g";
   aggiornaSelettoreUnita();
   aggiornaAnteprima();
 }
 
-// Il selettore g/ml compare solo dove ha senso: alimento liquido e quantità
-// espressa come peso. Partendo da calorie o da proteine il numero digitato non
-// è una quantità di alimento, quindi l'unità non è in gioco.
+// Il selettore compare solo dove ha senso: alimento con almeno una misura
+// casalinga e quantità espressa come peso. Partendo da calorie o da proteine il
+// numero digitato non è una quantità di alimento, quindi l'unità non è in gioco.
 function aggiornaSelettoreUnita() {
-  const liquido = !!(alimentoSelezionato && alimentoSelezionato.densita);
-  const attivo = liquido && modoCalcolo === "grammi";
-  unitaGruppo.classList.toggle("hidden", !attivo);
+  const misure = alimentoSelezionato
+    ? misureDisponibili(alimentoSelezionato.densita, alimentoSelezionato.gCucchiaio)
+    : ["g"];
+  const attivo = misure.length > 1 && modoCalcolo === "grammi";
+  unitaSelect.classList.toggle("hidden", !attivo);
   quantitaUnita.classList.toggle("hidden", attivo);
-  if (!liquido) unitaCorrente = "g";
-  if (!attivo) return;
-  Array.from(unitaGruppo.children).forEach(b =>
-    b.classList.toggle("attivo", b.dataset.unita === unitaCorrente));
+  if (!misure.includes(unitaCorrente)) unitaCorrente = misure[0];
+  if (!attivo) {
+    // Svuotato quando è nascosto: lasciarci le misure dell'alimento di prima
+    // significherebbe tenere in pagina uno stato che non corrisponde a nulla.
+    unitaSelect.innerHTML = "";
+    return;
+  }
+  unitaSelect.innerHTML = misure.map(u =>
+    `<option value="${u}"${u === unitaCorrente ? " selected" : ""}>${MISURE[u].molti}</option>`).join("");
+  quantitaInput.step = MISURE[unitaCorrente].passo;
 }
 
 function impostaUnita(unita) {
-  if (!alimentoSelezionato || !alimentoSelezionato.densita || unita === unitaCorrente) return;
+  if (!alimentoSelezionato || !MISURE[unita] || unita === unitaCorrente) return;
   const densita = alimentoSelezionato.densita;
+  const gCucchiaio = alimentoSelezionato.gCucchiaio;
+  if (!misureDisponibili(densita, gCucchiaio).includes(unita)) return;
   // Il numero già digitato viene convertito invece di essere azzerato: chi ha
   // scritto 200 ml e passa ai grammi si aspetta di leggere 206.
   const valore = parseFloat(quantitaInput.value);
   if (valore > 0) {
-    quantitaInput.value = round1(unita === "g" ? grammiDaMl(valore, densita) : mlDaGrammi(valore, densita));
+    const grammi = grammiDaMisura(valore, unitaCorrente, densita, gCucchiaio);
+    const convertito = grammi !== null ? misuraDaGrammi(grammi, unita, densita, gCucchiaio) : null;
+    if (convertito !== null) quantitaInput.value = round1(convertito);
   }
   unitaCorrente = unita;
   aggiornaSelettoreUnita();
@@ -1220,10 +1303,12 @@ function impostaModo(modo) {
 // richiesti da un alimento che non ne contiene).
 function grammiDaValore(per100, valore) {
   if (modoCalcolo === "grammi") {
-    // In millilitri il numero digitato non è un peso: va convertito, altrimenti
-    // 100 ml di olio verrebbero contati come 100 g, cioè 81 kcal di troppo.
-    const densita = alimentoSelezionato && alimentoSelezionato.densita;
-    return (unitaCorrente === "ml" && densita) ? grammiDaMl(valore, densita) : valore;
+    // In una misura casalinga il numero digitato non è un peso: va convertito,
+    // altrimenti 100 ml di olio verrebbero contati come 100 g, cioè 81 kcal di
+    // troppo.
+    if (unitaCorrente === "g" || !alimentoSelezionato) return valore;
+    const g = grammiDaMisura(valore, unitaCorrente, alimentoSelezionato.densita, alimentoSelezionato.gCucchiaio);
+    return g === null ? valore : g;
   }
   const per1g = (modoCalcolo === "kcal" ? per100.kcal : per100.proteine) / 100;
   if (per1g <= 0) return null;
@@ -1291,20 +1376,19 @@ function aggiornaAnteprima() {
   // L'unità con cui è stata scritta la quantità resta attaccata alla voce: la
   // riga, la stampa e il testo copiato la ripetono come l'ha scritta chi compone
   // la dieta, invece di ritradurla in grammi.
-  if (unitaCorrente === "ml" && alimentoSelezionato.densita && modoCalcolo === "grammi") {
-    calcoloCorrente.unita = "ml";
-    calcoloCorrente.densita = alimentoSelezionato.densita;
-    calcoloCorrente.ml = round1(valore);
-  } else if (alimentoSelezionato.densita) {
-    // Liquido misurato a peso: la densità serve comunque, per poter passare ai
-    // millilitri più tardi senza riaprire la tabella.
-    calcoloCorrente.densita = alimentoSelezionato.densita;
+  // Densità e grammi-per-cucchiaio viaggiano sempre con la voce: servono a
+  // ricalcolare la misura più tardi senza dover riaprire la tabella.
+  if (alimentoSelezionato.densita) calcoloCorrente.densita = alimentoSelezionato.densita;
+  if (alimentoSelezionato.gCucchiaio) calcoloCorrente.gCucchiaio = alimentoSelezionato.gCucchiaio;
+  if (unitaCorrente !== "g" && modoCalcolo === "grammi") {
+    calcoloCorrente.unita = unitaCorrente;
+    calcoloCorrente.quantita = round1(valore);
   }
 
   previewKcal.textContent = v.kcal;
   // Con i millilitri il peso corrispondente si mostra SEMPRE, anche partendo
   // dal volume: è il numero con cui sono stati fatti i conti.
-  previewGrammi.textContent = (unitaCorrente === "ml" || modoCalcolo !== "grammi")
+  previewGrammi.textContent = (unitaCorrente !== "g" || modoCalcolo !== "grammi")
     ? `≈ ${v.grammi} g`
     : "";
   previewProt.textContent = v.proteine;
@@ -1467,7 +1551,8 @@ function aggiungiAlPasto() {
     nota: notaInput.value.trim().slice(0, MAX_NOTA),
     per100: calcoloCorrente.per100,
     ...(calcoloCorrente.densita ? { densita: calcoloCorrente.densita } : {}),
-    ...(calcoloCorrente.unita === "ml" ? { unita: "ml", ml: calcoloCorrente.ml } : {})
+    ...(calcoloCorrente.gCucchiaio ? { gCucchiaio: calcoloCorrente.gCucchiaio } : {}),
+    ...(calcoloCorrente.unita ? { unita: calcoloCorrente.unita, quantita: calcoloCorrente.quantita } : {})
   });
   salvaStato();
   renderGiornata();
@@ -1523,8 +1608,8 @@ function rigaAlimentoHtml(voce, pasto, indice) {
       </div>
       <input type="number" class="riga-grammi" value="${quantita.valore}" min="0" step="1" inputmode="decimal"
              data-pasto="${escapeHtml(pasto)}" data-indice="${indice}"
-             aria-label="Quantità di ${escapeHtml(voce.nome)} in ${quantita.unita === "ml" ? "millilitri" : "grammi"}">
-      <span class="riga-unita">${quantita.unita}</span>
+             aria-label="Quantità di ${escapeHtml(voce.nome)} in ${MISURE[quantita.unita].molti}">
+      <span class="riga-unita">${etichettaMisura(quantita.unita, quantita.valore)}</span>
       <span class="riga-kcal">${v.kcal} kcal</span>
       <button type="button" class="riga-sostituisci no-print" data-sostituisci-pasto="${escapeHtml(pasto)}" data-indice="${indice}"
               title="Sostituisci con un alimento equivalente" aria-label="Sostituisci ${escapeHtml(voce.nome)}">⇄</button>
@@ -1830,9 +1915,13 @@ function vocePer(pasto, indice) {
 // peso a finire nei conti. Torna false se il numero non è utilizzabile.
 function scriviQuantitaVoce(voce, valore) {
   if (!(valore > 0)) return false;
-  if (voce.unita === "ml" && Number(voce.densita) > 0) {
-    voce.ml = round1(valore);
-    voce.grammi = Math.max(1, Math.round(grammiDaMl(voce.ml, voce.densita)));
+  const unita = voce.unita;
+  const grammi = unita && unita !== "g"
+    ? grammiDaMisura(valore, unita, voce.densita, voce.gCucchiaio)
+    : null;
+  if (grammi !== null) {
+    voce.quantita = round1(valore);
+    voce.grammi = Math.max(1, Math.round(grammi));
   } else {
     voce.grammi = Math.max(0, Math.round(valore));
   }
@@ -1937,9 +2026,12 @@ function candidatiSostituzione(chiaveOriginale, kcalDaPareggiare, per100Original
     // Un candidato liquido si propone in millilitri: sono l'unità con cui lo si
     // misurerà davvero.
     const densitaCand = densitaDi.get(chiave) || null;
-    const quantita = densitaCand
-      ? `${fmtNumero(round1(mlDaGrammi(grammi, densitaCand)))} ml`
-      : `${grammi} g`;
+    const cucchiaioCand = cucchiaioDi.get(chiave) || null;
+    const misuraCand = misureDisponibili(densitaCand, cucchiaioCand)[0];
+    const qCand = misuraCand === "g"
+      ? grammi
+      : round1(misuraDaGrammi(grammi, misuraCand, densitaCand, cucchiaioCand));
+    const quantita = `${fmtNumero(qCand)} ${etichettaMisura(misuraCand, qCand)}`;
     candidati.push({
       chiave, grammi, quantita, valori: v,
       dProt: round1(v.proteine - per100Originale.proteine),
@@ -2009,14 +2101,15 @@ function applicaSostituzione(indiceCandidato) {
   // millilitri non vogliono più dire nulla, e viceversa un liquido va espresso
   // in millilitri anche se prima c'era un solido pesato.
   const densitaNuova = densitaDi.get(scelto.chiave) || null;
-  if (densitaNuova) {
-    voce.densita = densitaNuova;
-    voce.unita = "ml";
-    voce.ml = round1(mlDaGrammi(voce.grammi, densitaNuova));
-  } else {
-    delete voce.densita;
-    delete voce.unita;
-    delete voce.ml;
+  const cucchiaioNuovo = cucchiaioDi.get(scelto.chiave) || null;
+  delete voce.densita; delete voce.gCucchiaio; delete voce.unita;
+  delete voce.quantita; delete voce.ml;
+  if (densitaNuova) voce.densita = densitaNuova;
+  if (cucchiaioNuovo) voce.gCucchiaio = cucchiaioNuovo;
+  const misuraNuova = misureDisponibili(densitaNuova, cucchiaioNuovo)[0];
+  if (misuraNuova !== "g") {
+    voce.unita = misuraNuova;
+    voce.quantita = round1(misuraDaGrammi(voce.grammi, misuraNuova, densitaNuova, cucchiaioNuovo));
   }
   // La nota descriveva l'alimento di prima ("cotta al dente" su una pasta):
   // portarla sul sostituto scriverebbe una sciocchezza, che finirebbe anche sul
@@ -2814,10 +2907,7 @@ function collegaEventi() {
   });
   aggiungiBtn.addEventListener("click", aggiungiAlPasto);
 
-  unitaGruppo.addEventListener("click", (e) => {
-    const scelta = e.target.closest("[data-unita]");
-    if (scelta) impostaUnita(scelta.dataset.unita);
-  });
+  unitaSelect.addEventListener("change", () => impostaUnita(unitaSelect.value));
 
   // Diete
   dietaSelect.addEventListener("change", () => cambiaDieta(Number(dietaSelect.value)));

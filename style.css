@@ -555,17 +555,15 @@ button.danger:hover:not(:disabled) { background: var(--danger-hover); }
 
 /* ---------- Scelta dell'unità per i liquidi ---------- */
 
-/* Prende il posto dell'etichetta fissa "g" accanto alla quantità, quindi non
-   deve allargare la riga: due scomparti stretti, stessa altezza del campo. */
-.unita-scelta {
+/* Prende il posto dell'etichetta fissa "g" accanto alla quantità. Un menù e
+   non dei bottoni affiancati: con quattro misure (ml, cucchiai, bicchieri, g)
+   la riga andrebbe a capo su telefono. */
+.unita-select {
   flex: none;
   width: auto;
+  min-width: 96px;
   align-self: stretch;
-}
-.unita-scelta button {
-  padding: 0 14px;
   font-size: 0.95rem;
-  font-variant-numeric: tabular-nums;
 }
 
 /* ---------- Dati non disponibili ---------- */

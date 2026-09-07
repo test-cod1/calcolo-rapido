@@ -442,7 +442,8 @@
   "grassi": 0.4,
   "carboidrati": 11.4,
   "categoria": "Verdure, funghi",
-  "codice": 100180
+  "codice": 100180,
+  "gCucchiaio": 17
  },
  {
   "nome": "PORRI",
@@ -891,7 +892,8 @@
   "grassi": 4.9,
   "carboidrati": 54.3,
   "categoria": "Legumi e prodotti della soia",
-  "codice": 700080
+  "codice": 700080,
+  "gCucchiaio": 9
  },
  {
   "nome": "FAVE",
@@ -1149,7 +1151,8 @@
   "grassi": 3.7,
   "carboidrati": 71.6,
   "categoria": "Frutta fresca, secca, farine, succhi",
-  "codice": 3100
+  "codice": 3100,
+  "gCucchiaio": 9
  },
  {
   "nome": "FICHI",
@@ -1630,7 +1633,8 @@
   "grassi": 3.9,
   "carboidrati": 4.3,
   "categoria": "Latte e yogurt",
-  "codice": 1630
+  "codice": 1630,
+  "gCucchiaio": 18
  },
  {
   "nome": "YOGURT DI LATTE INTERO ALLA FRUTTA ZUCCHERATO",
@@ -1648,7 +1652,8 @@
   "grassi": 1.7,
   "carboidrati": 3.8,
   "categoria": "Latte e yogurt",
-  "codice": 1631
+  "codice": 1631,
+  "gCucchiaio": 18
  },
  {
   "nome": "YOGURT DI LATTE SCREMATO",
@@ -1657,7 +1662,8 @@
   "grassi": 0.9,
   "carboidrati": 4,
   "categoria": "Latte e yogurt",
-  "codice": 1632
+  "codice": 1632,
+  "gCucchiaio": 18
  },
  {
   "nome": "YOGURT DI LATTE SCREMATO ALLA FRUTTA ZUCCHERATO",
@@ -1675,7 +1681,8 @@
   "grassi": 9.1,
   "carboidrati": 2,
   "categoria": "Latte e yogurt",
-  "codice": 8053
+  "codice": 8053,
+  "gCucchiaio": 20
  },
  {
   "nome": "ASIAGO",
@@ -1864,7 +1871,8 @@
   "grassi": 28.5,
   "carboidrati": 3.7,
   "categoria": "Formaggi",
-  "codice": 1714
+  "codice": 1714,
+  "gCucchiaio": 5
  },
  {
   "nome": "GROVIERA",
@@ -1918,7 +1926,8 @@
   "grassi": 28.1,
   "carboidrati": -2,
   "categoria": "Formaggi",
-  "codice": 1726
+  "codice": 1726,
+  "gCucchiaio": 5
  },
  {
   "nome": "PECORINO ROMANO",
@@ -2081,7 +2090,8 @@
   "grassi": 7.1,
   "carboidrati": 72.9,
   "categoria": "Cereali, farine, pasta, crakers",
-  "codice": 9
+  "codice": 9,
+  "gCucchiaio": 9
  },
  {
   "nome": "FARINA DI FRUMENTO, INTEGRALE",
@@ -2090,7 +2100,8 @@
   "grassi": 1.9,
   "carboidrati": 68.4,
   "categoria": "Cereali, farine, pasta, crakers",
-  "codice": 10
+  "codice": 10,
+  "gCucchiaio": 9
  },
  {
   "nome": "FARINA DI FRUMENTO, TIPO 00",
@@ -2099,7 +2110,8 @@
   "grassi": 0.7,
   "carboidrati": 78,
   "categoria": "Cereali, farine, pasta, crakers",
-  "codice": 12
+  "codice": 12,
+  "gCucchiaio": 9
  },
  {
   "nome": "FARINA DI GRANO DURO",
@@ -2108,7 +2120,8 @@
   "grassi": 2.8,
   "carboidrati": 61.1,
   "categoria": "Cereali, farine, pasta, crakers",
-  "codice": 19021
+  "codice": 19021,
+  "gCucchiaio": 10
  },
  {
   "nome": "FARINA DI GRANO SARACENO",
@@ -2117,7 +2130,8 @@
   "grassi": 1.5,
   "carboidrati": 84.9,
   "categoria": "Cereali, farine, pasta, crakers",
-  "codice": 805470
+  "codice": 805470,
+  "gCucchiaio": 9
  },
  {
   "nome": "FARINA DI MAIS",
@@ -2126,7 +2140,8 @@
   "grassi": 2.7,
   "carboidrati": 81.5,
   "categoria": "Cereali, farine, pasta, crakers",
-  "codice": 13
+  "codice": 13,
+  "gCucchiaio": 10
  },
  {
   "nome": "FARINA DI RISO",
@@ -2135,7 +2150,8 @@
   "grassi": 0.5,
   "carboidrati": 87.8,
   "categoria": "Cereali, farine, pasta, crakers",
-  "codice": 15
+  "codice": 15,
+  "gCucchiaio": 9
  },
  {
   "nome": "FARINA DI SEGALE, integrale",
@@ -2144,7 +2160,8 @@
   "grassi": 2,
   "carboidrati": 75.9,
   "categoria": "Cereali, farine, pasta, crakers",
-  "codice": 19022
+  "codice": 19022,
+  "gCucchiaio": 9
  },
  {
   "nome": "FIOCCHI DI AVENA",
@@ -2271,7 +2288,8 @@
   "grassi": 1.9,
   "carboidrati": 77.5,
   "categoria": "Cereali, farine, pasta, crakers",
-  "codice": 35
+  "codice": 35,
+  "gCucchiaio": 8
  },
  {
   "nome": "PANE INTEGRALE",
@@ -3424,7 +3442,8 @@
   "grassi": 83.4,
   "carboidrati": 1.1,
   "categoria": "Oli, margarine, burro, panna",
-  "codice": 1900
+  "codice": 1900,
+  "gCucchiaio": 12
  },
  {
   "nome": "BURRO DI ARACHIDI",
@@ -3433,7 +3452,8 @@
   "grassi": 53.7,
   "carboidrati": 13.1,
   "categoria": "Oli, margarine, burro, panna",
-  "codice": 606010
+  "codice": 606010,
+  "gCucchiaio": 16
  },
  {
   "nome": "LARDO",
@@ -3604,7 +3624,8 @@
   "grassi": 32.4,
   "carboidrati": 58.1,
   "categoria": "Dolci, ciocc, zucchero, marmellate",
-  "codice": 2008
+  "codice": 2008,
+  "gCucchiaio": 17
  },
  {
   "nome": "DOLCIFICANTE ASPARTAME",
@@ -3658,7 +3679,8 @@
   "grassi": -2,
   "carboidrati": 58.7,
   "categoria": "Dolci, ciocc, zucchero, marmellate",
-  "codice": 2013
+  "codice": 2013,
+  "gCucchiaio": 15
  },
  {
   "nome": "MARMELLATA DI ALBICOCCHE",
@@ -3667,7 +3689,8 @@
   "grassi": 0.2,
   "carboidrati": 63.2,
   "categoria": "Dolci, ciocc, zucchero, marmellate",
-  "codice": 805941
+  "codice": 805941,
+  "gCucchiaio": 15
  },
  {
   "nome": "MARMELLATA DI ARANCE",
@@ -3676,7 +3699,8 @@
   "grassi": 0,
   "carboidrati": 69.5,
   "categoria": "Dolci, ciocc, zucchero, marmellate",
-  "codice": 100193
+  "codice": 100193,
+  "gCucchiaio": 15
  },
  {
   "nome": "MIELE",
@@ -3685,7 +3709,8 @@
   "grassi": 0,
   "carboidrati": 80.3,
   "categoria": "Dolci, ciocc, zucchero, marmellate",
-  "codice": 2017
+  "codice": 2017,
+  "gCucchiaio": 20
  },
  {
   "nome": "TORRONE CON MANDORLE",
@@ -3703,7 +3728,8 @@
   "grassi": 0,
   "carboidrati": 104.5,
   "categoria": "Dolci, ciocc, zucchero, marmellate",
-  "codice": 2021
+  "codice": 2021,
+  "gCucchiaio": 12
  },
  {
   "nome": "ZUCCHERO DI CANNA, GREZZO",
@@ -3712,7 +3738,8 @@
   "grassi": 0,
   "carboidrati": 101.3,
   "categoria": "Dolci, ciocc, zucchero, marmellate",
-  "codice": 805958
+  "codice": 805958,
+  "gCucchiaio": 11
  },
  {
   "nome": "BIGNE'",
@@ -4037,7 +4064,8 @@
   "grassi": 25.6,
   "carboidrati": 11.5,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 3000
+  "codice": 3000,
+  "gCucchiaio": 6
  },
  {
   "nome": "CACAO DOLCE, in polvere, solubile",
@@ -4046,7 +4074,8 @@
   "grassi": 8.6,
   "carboidrati": 67.7,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 3012
+  "codice": 3012,
+  "gCucchiaio": 8
  },
  {
   "nome": "CAFFE' BAR, in tazza",
@@ -4285,7 +4314,8 @@
   "grassi": 0,
   "carboidrati": 0.6,
   "categoria": "Miscellanea",
-  "codice": 100205
+  "codice": 100205,
+  "densita": 1.01
  },
  {
   "nome": "ACQUA",
@@ -4359,7 +4389,8 @@
   "grassi": 70,
   "carboidrati": 2.2,
   "categoria": "Miscellanea",
-  "codice": 3004
+  "codice": 3004,
+  "gCucchiaio": 13
  },
  {
   "nome": "PASTA DI OLIVE",

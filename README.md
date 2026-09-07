@@ -97,32 +97,51 @@ il 15% di scostamento la pastiglia cambia colore.
 Serve anche l'obiettivo calorico della giornata: senza, le percentuali non si
 possono tradurre in calorie e l'app lo dice.
 
-### Millilitri per i liquidi
+### Misure casalinghe: ml, cucchiai, bicchieri
 
-I valori della tabella sono **per 100 grammi**, sempre. I millilitri non sono
-un'altra etichetta per la stessa cosa: 100 ml di olio pesano 91 g, cioè 81 kcal
-in meno di 100 g. Quindi il grammo resta l'unità dei conti, e i millilitri sono
-ciò che si scrive e si legge, convertiti con la densità dell'alimento.
+I valori della tabella sono **per 100 grammi**, sempre. Millilitri, cucchiai e
+bicchieri non sono altre etichette per la stessa cosa: 100 ml di olio pesano
+91 g, cioè 81 kcal in meno di 100 g. Il grammo resta l'unità dei conti, e la
+misura casalinga è ciò che si scrive e si legge.
 
-**62 alimenti** hanno una densità in `foods.json` e partono in millilitri: 33
-bevande, 9 succhi, 7 tipi di latte più soia e mandorle, 7 oli, 2 panne, 2 brodi.
-Il selettore accanto alla quantità permette di passare ai grammi, convertendo
-il numero già scritto. Restano a peso yogurt, burro, lardo, strutto, margarina
-e burro di arachidi, che si servono col cucchiaio o si vendono a peso; l'olio di
-cocco anche, perché sotto i 24 °C è solido.
+Due strade per arrivare ai grammi, perché sono due problemi diversi:
 
-L'unità scelta resta attaccata alla voce: riga, stampa e testo copiato dicono
-«200 ml», non «206 g». Nella voce si conservano **sia** i millilitri scritti
-**sia** i grammi calcolati, così correggere e annullare non fa slittare il
-valore per arrotondamenti successivi. Le voci salvate prima di questa funzione
-non hanno unità e restano in grammi.
+- i **liquidi** hanno una densità (`densita`, in g/ml): un cucchiaio è 15 ml di
+  quel liquido, un bicchiere 200 ml, e il peso si ricava moltiplicando;
+- i **solidi** no. Un cucchiaio di farina pesa 9 g, non 15: fra i granelli c'è
+  aria, e la densità apparente non si deduce da nulla. Per loro `foods.json`
+  porta direttamente i grammi di un cucchiaio raso (`gCucchiaio`).
 
-Sostituendo un alimento l'unità segue il nuovo: un olio scambiato con del pane
-passa ai grammi, un latte scambiato con un altro latte resta in millilitri.
+Il bicchiere esiste solo per i liquidi: un bicchiere di farina non è una misura
+che qualcuno usi in cucina.
 
-**Attenzione alla fonte:** le densità **non** vengono dal CREA, che non le
-pubblica. Sono valori di riferimento standard a 20 °C. Per acqua, tè, caffè e
-brodo l'approssimazione è nulla; per oli e succhi è nell'ordine dell'1%.
+**93 alimenti su 464** hanno almeno una misura casalinga: **63 liquidi** (33
+bevande, 9 succhi, aceto, 7 tipi di latte più soia e mandorle, 7 oli, 2 panne,
+2 brodi) e **30 con il cucchiaio** (zuccheri, miele, marmellate, crema di
+nocciole, cacao, 10 farine, pane grattugiato, parmigiano e grana, burro, burro
+di arachidi, maionese, concentrato di pomodoro, yogurt).
+
+Ogni alimento parte dalla misura più naturale — millilitri per i liquidi,
+cucchiai per zucchero e farina, grammi per il resto — e il menù accanto alla
+quantità permette di cambiare, convertendo il numero già scritto. Sulla scheda
+dell'alimento sono scritte le conversioni che l'app applica, e mezzi cucchiai
+si possono scrivere (passo 0,5).
+
+L'unità resta attaccata alla voce: riga, stampa e testo copiato dicono
+«2 cucchiai» e «1 bicchiere», con singolare e plurale corretti. Nella voce si
+conservano **sia** la quantità scritta **sia** i grammi calcolati, così
+correggere e annullare non fa slittare il valore per arrotondamenti successivi.
+Le voci salvate prima non hanno unità e restano in grammi; quelle della prima
+versione dei millilitri vengono convertite in lettura.
+
+Sostituendo un alimento la misura segue il nuovo: un olio scambiato con del
+pane passa ai grammi.
+
+**Attenzione alla fonte:** densità e grammi per cucchiaio **non** vengono dal
+CREA, che non li pubblica. Sono valori di riferimento d'uso comune, con la
+densità a 20 °C e il cucchiaio preso a **15 ml** (un cucchiaio raso da tavola).
+Chi segue la convenzione dietetica per cui «un cucchiaio d'olio = 10 g» deve
+saperlo: qui un cucchiaio d'olio pesa 13,7 g, che è il volume reale.
 
 ### Sostituzioni equivalenti
 
