@@ -6,6 +6,17 @@
   <title>Calcolo rapido</title>
   <meta name="description" content="Compone la giornata alimentare e ne calcola calorie e macronutrienti, senza accesso e senza connessione.">
 
+  <!-- Politica di sicurezza dei contenuti dichiarata qui e non solo in
+       _headers: su GitHub Pages quel file viene ignorato, e senza questo meta
+       il sito viaggerebbe senza nessuna CSP. Tutto è servito dalla stessa
+       origine, quindi la politica può essere chiusa.
+       'unsafe-inline' su style-src serve alle larghezze delle barre, scritte
+       nell'attributo style. 'frame-ancestors' NON è ammesso in un meta: per
+       impedire l'incorniciamento in un iframe servono header veri, cioè un
+       hosting che li permetta. -->
+  <meta http-equiv="Content-Security-Policy"
+        content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; connect-src 'self'; worker-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'">
+
   <meta name="theme-color" content="#2f6d4f">
 
   <link rel="manifest" href="manifest.json">
@@ -47,7 +58,7 @@
   </header>
 
   <!-- Copia di un pasto in una o più altre giornate -->
-  <div id="copia-pasto-overlay" class="installa-overlay hidden no-print">
+  <div id="copia-pasto-overlay" class="installa-overlay hidden no-print" role="dialog" aria-modal="true" aria-labelledby="copia-pasto-titolo">
     <div class="installa-modal">
       <h3 id="copia-pasto-titolo">Copia il pasto</h3>
       <p class="hint">Gli alimenti vengono <strong>aggiunti</strong> a quelli già presenti nello stesso pasto delle giornate scelte.</p>
@@ -61,7 +72,7 @@
   </div>
 
   <!-- Sostituzione di un alimento con uno equivalente della stessa categoria -->
-  <div id="sostituisci-overlay" class="installa-overlay hidden no-print">
+  <div id="sostituisci-overlay" class="installa-overlay hidden no-print" role="dialog" aria-modal="true" aria-labelledby="sostituisci-titolo">
     <div class="installa-modal">
       <h3 id="sostituisci-titolo">Sostituisci l'alimento</h3>
       <p class="hint">Quantità calcolate per dare <strong>le stesse calorie</strong> della voce di partenza. Fra parentesi quanto cambiano gli altri valori.</p>
@@ -74,13 +85,22 @@
 
   <!-- Istruzioni per installare a mano: su iPhone/iPad non esiste un invito
        automatico all'installazione, si passa dal menù Condividi. -->
-  <div id="installa-overlay" class="installa-overlay hidden no-print">
+  <div id="installa-overlay" class="installa-overlay hidden no-print" role="dialog" aria-modal="true" aria-labelledby="installa-titolo">
     <div class="installa-modal">
-      <h3>Installa «Calcolo rapido»</h3>
+      <h3 id="installa-titolo">Installa «Calcolo rapido»</h3>
       <p class="installa-testo" id="installa-istruzioni"></p>
       <p class="hint">Una volta installata si apre a schermo intero, con icona propria, e funziona anche senza connessione.</p>
       <button type="button" id="installa-chiudi-btn">Ho capito</button>
     </div>
+  </div>
+
+  <!-- Avviso permanente quando il browser rifiuta di salvare: senza, si
+       continuerebbe a lavorare credendo che il lavoro sia al sicuro. -->
+  <div id="avviso-salvataggio" class="avviso-salvataggio hidden no-print" role="alert">
+    <strong>Attenzione: questo browser non sta salvando.</strong>
+    Quello che scrivi resta solo finché la pagina è aperta e andrà perso alla ricarica.
+    Succede in navigazione privata o se la memoria del sito è bloccata.
+    Usa «Salva su file» in fondo alla pagina per non perdere il lavoro.
   </div>
 
   <!-- ---------- Dieta aperta ---------- -->
@@ -213,7 +233,7 @@
       <h3>Nuovo alimento</h3>
       <p class="hint">Valori per 100 g. Resta salvato solo su questo dispositivo, in questa modalità rapida.</p>
       <label for="nuovo-nome">Nome</label>
-      <input type="text" id="nuovo-nome" placeholder="es. Pane di segale del forno">
+      <input type="text" id="nuovo-nome" maxlength="60" placeholder="es. Pane di segale del forno">
       <div class="nuovo-alimento-valori">
         <div class="campo"><label for="nuovo-kcal">Calorie</label><input type="number" id="nuovo-kcal" min="0" step="0.1" inputmode="decimal"></div>
         <div class="campo"><label for="nuovo-prot">Proteine</label><input type="number" id="nuovo-prot" min="0" step="0.1" inputmode="decimal"></div>
@@ -259,7 +279,7 @@
     </div>
 
     <label for="nota-input">Nota <span class="facolt">(facoltativa)</span></label>
-    <input type="text" id="nota-input" placeholder="es. cotto al vapore, a crudo…">
+    <input type="text" id="nota-input" maxlength="80" placeholder="es. cotto al vapore, a crudo…">
 
     <div class="aggiungi-riga">
       <select id="pasto-select" aria-label="Pasto in cui inserire l'alimento">
@@ -308,9 +328,26 @@
     <div id="totali-giorno"></div>
   </section>
 
+  <!-- ---------- I tuoi dati ---------- -->
+  <!-- Tutto vive nel browser: senza una copia su file, una pulizia dei dati di
+       navigazione porta via il lavoro di mesi senza possibilità di recupero. -->
+  <section class="card card-dati no-print">
+    <h2>I tuoi dati</h2>
+    <p class="hint">Le diete stanno solo in questo browser. Il file di salvataggio è la tua unica copia di sicurezza: contiene le diete, i profili e gli alimenti che hai creato.</p>
+    <div class="riga-bottoni">
+      <button type="button" id="esporta-btn" class="secondary">⤓ Salva su file</button>
+      <button type="button" id="importa-btn" class="secondary">⤒ Carica da file</button>
+      <button type="button" id="cancella-tutto-btn" class="danger">Cancella tutto</button>
+    </div>
+    <!-- Fuori dal flusso ma non display:none: alcuni browser ignorano il clic
+         programmato su un campo file nascosto del tutto. -->
+    <input type="file" id="importa-file" accept="application/json,.json" class="campo-file" aria-label="File di salvataggio da caricare">
+    <p class="hint hint-privacy">Contengono dati di salute (peso, età, sesso) e, se li scrivi nel nome della dieta, anche dati identificativi. Meglio un codice o le iniziali che nome e cognome per esteso.</p>
+  </section>
+
   <p class="nota-finale no-print">
     Applicazione indipendente: nulla di ciò che scrivi qui viene inviato o salvato online.
-    Le diete restano memorizzate solo in questo browser, finché non le elimini.
+    Le diete restano <strong>solo in questo browser</strong>: le cancella anche una pulizia dei dati di navigazione, un browser reinstallato o la navigazione privata. Usa «Salva su file» per averne una copia.
   </p>
 
   <!-- Riepilogo sempre visibile mentre si compone -->

@@ -1,3 +1,14 @@
+# ATTENZIONE: questo file NON ha alcun effetto sull'hosting attuale.
+# È un meccanismo di Cloudflare Pages; su GitHub Pages, dove il sito è
+# pubblicato oggi, viene ignorato e servito come un file qualunque. Verificato:
+# l'unico header di sicurezza che arriva al browser è Strict-Transport-Security,
+# e lo aggiunge GitHub di suo.
+# La Content-Security-Policy è quindi dichiarata anche in un <meta> dentro
+# index.html, che invece funziona. Restano fuori le direttive non ammesse in un
+# meta, prima fra tutte frame-ancestors (difesa dall'incorniciamento in iframe):
+# per quelle servono header veri, cioè un trasloco su un hosting che li
+# permetta. Questo file è tenuto qui pronto per quel giorno.
+#
 # Header di sicurezza applicati da Cloudflare Pages a tutte le risposte.
 # L'applicazione non contatta nessun servizio esterno: la policy è chiusa su
 # 'self'. Se dopo la pubblicazione qualcosa non carica, la causa più probabile

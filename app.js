@@ -66,6 +66,19 @@ const RIPARTIZIONE_TIPICA = {
 // Il 15% evita di accendere un avviso per pochi grammi di differenza.
 const TOLLERANZA_PASTO = 0.15;
 
+// Limiti dei testi liberi. Non sono capricci: un nome o una nota lunghissimi
+// sfondano la riga a schermo e il foglio stampato, e restano nel salvataggio.
+// I nomi di dieta e giornata sono già limitati a 40 dai rispettivi campi.
+const MAX_NOME_ALIMENTO = 60;
+const MAX_NOTA = 80;
+
+// Nel foglio di partenza -2 vuol dire "dato non disponibile", non zero. Sono 41
+// alimenti (per esempio i carboidrati del parmigiano). Trattarlo come zero fa
+// sottostimare il totale della giornata senza che nessuno se ne accorga:
+// l'app lo tiene da parte per poterlo dichiarare.
+const VALORE_ASSENTE = -2;
+const ETICHETTE_MACRO = { kcal: "calorie", proteine: "proteine", grassi: "grassi", carboidrati: "carboidrati" };
+
 // ---------- Stato ----------
 
 const MAX_GIORNATE = 7;
@@ -340,6 +353,11 @@ const toast = el("toast");
 
 const installaBtn = el("installa-btn");
 const installaOverlay = el("installa-overlay");
+const avvisoSalvataggio = el("avviso-salvataggio");
+const esportaBtn = el("esporta-btn");
+const importaBtn = el("importa-btn");
+const importaFile = el("importa-file");
+const cancellaTuttoBtn = el("cancella-tutto-btn");
 const installaIstruzioni = el("installa-istruzioni");
 const installaChiudiBtn = el("installa-chiudi-btn");
 
@@ -423,8 +441,28 @@ function inizializzaTema() {
 
 // ---------- Persistenza locale ----------
 
+// Se il salvataggio non riesce (navigazione privata, spazio esaurito, memoria
+// del sito bloccata) l'app NON deve fare finta di niente: chi sta scrivendo una
+// dieta continuerebbe a lavorare convinto che sia al sicuro, e la perderebbe
+// tutta alla prima ricarica. L'avviso resta a video finché il salvataggio non
+// torna a funzionare.
+let salvataggioNonRiuscito = false;
+
 function salvaStato() {
-  try { localStorage.setItem(CHIAVE_STATO, JSON.stringify(archivio)); } catch (e) { /* quota/privato */ }
+  try {
+    localStorage.setItem(CHIAVE_STATO, JSON.stringify(archivio));
+    if (salvataggioNonRiuscito) {
+      salvataggioNonRiuscito = false;
+      mostraAvvisoSalvataggio();
+    }
+  } catch (e) {
+    salvataggioNonRiuscito = true;
+    mostraAvvisoSalvataggio();
+  }
+}
+
+function mostraAvvisoSalvataggio() {
+  avvisoSalvataggio.classList.toggle("hidden", !salvataggioNonRiuscito);
 }
 
 function caricaStato() {
@@ -486,9 +524,9 @@ function leggiPasti(salvati) {
   PASTI.forEach(pasto => {
     const voci = salvati && Array.isArray(salvati[pasto]) ? salvati[pasto] : [];
     pasti[pasto] = voci.filter(v => v && v.per100).map(v => ({
-      nome: String(v.nome || "Alimento"),
+      nome: String(v.nome || "Alimento").slice(0, MAX_NOME_ALIMENTO),
       grammi: Math.max(0, Number(v.grammi) || 0),
-      nota: String(v.nota || ""),
+      nota: String(v.nota || "").slice(0, MAX_NOTA),
       per100: normalizzaPer100(v.per100)
     }));
   });
@@ -648,6 +686,151 @@ function renderDiete() {
   dietaInfo.textContent = parti.join(" · ");
 }
 
+// ---------- Copia di sicurezza su file ----------
+// Tutto vive nel localStorage di un browser solo: senza un file esportabile una
+// pulizia dei dati di navigazione porta via mesi di lavoro senza rimedio.
+
+const VERSIONE_FILE = 1;
+
+function nomeFileSalvataggio() {
+  const d = new Date();
+  const p = n => String(n).padStart(2, "0");
+  return `calcolo-rapido-${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}.json`;
+}
+
+function esportaDati() {
+  const contenuto = {
+    formato: "calcolo-rapido",
+    versione: VERSIONE_FILE,
+    esportatoIl: new Date().toISOString(),
+    archivio,
+    alimentiCustom
+  };
+  try {
+    const blob = new Blob([JSON.stringify(contenuto, null, 1)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = nomeFileSalvataggio();
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    // Rilasciato dopo il clic: revocarlo subito annullerebbe il download.
+    setTimeout(() => URL.revokeObjectURL(url), 10000);
+    mostraToast("Salvato: conserva il file, è la tua copia di sicurezza");
+  } catch (e) {
+    mostraToast("Salvataggio su file non riuscito");
+  }
+}
+
+async function importaDati(file) {
+  if (!file) return;
+  let dati = null;
+  try {
+    dati = JSON.parse(await file.text());
+  } catch (e) {
+    mostraToast("File non leggibile: non è un salvataggio di Calcolo rapido");
+    return;
+  }
+  if (!dati || dati.formato !== "calcolo-rapido" || !dati.archivio) {
+    mostraToast("File non riconosciuto: non è un salvataggio di Calcolo rapido");
+    return;
+  }
+  const quante = Array.isArray(dati.archivio.diete) ? dati.archivio.diete.length : 0;
+  if (!quante) {
+    mostraToast("Il file non contiene nessuna dieta");
+    return;
+  }
+  // Sostituzione, non fusione: unire due archivi darebbe diete duplicate senza
+  // che si capisca quali. Chi vuole tenere anche il lavoro di adesso lo salva
+  // prima su file.
+  if (!confirm(`Caricare ${quante} ${quante === 1 ? "dieta" : "diete"} dal file?\n\nQuesto SOSTITUISCE tutto il lavoro presente in questo browser. Se ti serve, salvalo prima su file.`)) return;
+
+  // Le stesse funzioni che rileggono il localStorage: un file manomesso o
+  // scritto da un'altra versione non deve poter rompere il rendering.
+  const nuovo = creaArchivioVuoto();
+  nuovo.diete = dati.archivio.diete.slice(0, MAX_DIETE).map((d, i) =>
+    leggiDieta(d, `Dieta ${i + 1}`, COLORI_DIETA[i % COLORI_DIETA.length].id));
+  const attiva = Number(dati.archivio.dietaAttiva);
+  nuovo.dietaAttiva = attiva >= 0 && attiva < nuovo.diete.length ? attiva : 0;
+  archivio = nuovo;
+
+  if (Array.isArray(dati.alimentiCustom)) {
+    alimentiCustom = dati.alimentiCustom
+      .filter(a => a && a.nome)
+      .map(a => ({ nome: String(a.nome).slice(0, MAX_NOME_ALIMENTO), ...normalizzaPer100(a) }));
+    salvaAlimentiCustom();
+    ricostruisciElenco();
+  }
+
+  apriDietaCorrente(`Caricate ${quante} ${quante === 1 ? "dieta" : "diete"} dal file`);
+}
+
+function cancellaTutto() {
+  if (!confirm("Cancellare TUTTE le diete, i profili e gli alimenti creati su questo dispositivo?\n\nL'operazione non si può annullare. Se ti serve una copia, chiudi e usa prima «Salva su file».")) return;
+  if (!confirm("Confermi? Tutto il contenuto di questo browser verrà cancellato.")) return;
+  try {
+    localStorage.removeItem(CHIAVE_STATO);
+    localStorage.removeItem(CHIAVE_ALIMENTI);
+  } catch (e) { /* niente da fare: si riparte comunque da vuoto */ }
+  archivio = creaArchivioVuoto();
+  alimentiCustom = [];
+  ricostruisciElenco();
+  apriDietaCorrente("Tutto cancellato");
+}
+
+// ---------- Finestre di dialogo ----------
+// Gli overlay sono finestre modali a tutti gli effetti: vanno annunciate a chi
+// usa uno screen reader, devono ricevere il fuoco e non lasciarlo scappare
+// sulla pagina dietro, e alla chiusura devono restituirlo dov'era.
+
+let fuocoPrimaDelDialogo = null;
+
+function apriDialogo(overlay) {
+  fuocoPrimaDelDialogo = document.activeElement;
+  overlay.classList.remove("hidden");
+  const primo = overlay.querySelector("button, [href], input, select, textarea");
+  if (primo) primo.focus();
+}
+
+function chiudiDialogo(overlay) {
+  overlay.classList.add("hidden");
+  if (fuocoPrimaDelDialogo && document.contains(fuocoPrimaDelDialogo)) {
+    fuocoPrimaDelDialogo.focus();
+  }
+  fuocoPrimaDelDialogo = null;
+}
+
+function dialogoAperto() {
+  return [copiaPastoOverlay, sostituisciOverlay, installaOverlay]
+    .find(o => o && !o.classList.contains("hidden")) || null;
+}
+
+// Tab e Shift+Tab girano dentro il dialogo aperto invece di uscirne.
+function trattieniFuoco(e) {
+  if (e.key !== "Tab") return;
+  const overlay = dialogoAperto();
+  if (!overlay) return;
+  const fuocabili = Array.from(
+    overlay.querySelectorAll("button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex='-1'])")
+  ).filter(el => el.offsetParent !== null);
+  if (!fuocabili.length) return;
+  const primo = fuocabili[0];
+  const ultimo = fuocabili[fuocabili.length - 1];
+  if (!overlay.contains(document.activeElement)) {
+    e.preventDefault();
+    primo.focus();
+    return;
+  }
+  if (e.shiftKey && document.activeElement === primo) {
+    e.preventDefault();
+    ultimo.focus();
+  } else if (!e.shiftKey && document.activeElement === ultimo) {
+    e.preventDefault();
+    primo.focus();
+  }
+}
+
 // ---------- Ripartizione per pasto: interfaccia ----------
 
 function renderRipartizione() {
@@ -735,12 +918,36 @@ function spegniRipartizione() {
 // `|| 0` difensivo: un valore mancante darebbe NaN e il NaN si propagherebbe in
 // tutti i totali della giornata.
 function normalizzaPer100(a) {
-  return {
+  const per100 = {
     kcal: Math.max(0, Number(a.kcal) || 0),
     proteine: Math.max(0, Number(a.proteine) || 0),
     grassi: Math.max(0, Number(a.grassi) || 0),
     carboidrati: Math.max(0, Number(a.carboidrati) || 0)
   };
+  // I valori a -2 restano zero nei conti (non c'è altro da sommare), ma li
+  // annotiamo: "0 g di carboidrati" e "carboidrati non misurati" sono due cose
+  // diverse, e la seconda va detta invece di far finta della prima.
+  // Il -2 si riconosce dal valore grezzo (tabella alimenti) oppure da un elenco
+  // già annotato: una voce salvata nella giornata porta i suoi valori a zero,
+  // e senza questo l'informazione andrebbe persa alla ricarica.
+  const daiValori = Object.keys(ETICHETTE_MACRO).filter(k => Number(a[k]) === VALORE_ASSENTE);
+  const giaNoti = Array.isArray(a.assenti) ? a.assenti.filter(k => k in ETICHETTE_MACRO) : [];
+  const assenti = Array.from(new Set([...daiValori, ...giaNoti]));
+  if (assenti.length) per100.assenti = assenti;
+  return per100;
+}
+
+// Quali dati mancano in una giornata, e in quanti alimenti: serve a dichiarare
+// che il totale è per difetto invece di presentarlo come esatto.
+function datiAssenti(voci) {
+  const perNutriente = new Map();
+  voci.forEach(voce => {
+    (voce.per100 && voce.per100.assenti || []).forEach(k => {
+      if (!perNutriente.has(k)) perNutriente.set(k, new Set());
+      perNutriente.get(k).add(voce.nome);
+    });
+  });
+  return perNutriente;
 }
 
 // Ricostruisce SEMPRE la mappa da zero, base + personalizzati. Fondamentale
@@ -1008,7 +1215,7 @@ function chiudiFormNuovoAlimento() {
 }
 
 function salvaNuovoAlimento() {
-  const nome = nuovoNome.value.trim();
+  const nome = nuovoNome.value.trim().slice(0, MAX_NOME_ALIMENTO);
   const valori = [nuovoKcal, nuovoProt, nuovoFat, nuovoCarb].map(i => parseFloat(i.value));
   if (!nome || valori.some(v => isNaN(v) || v < 0)) {
     nuovoAlimentoError.classList.remove("hidden");
@@ -1142,7 +1349,7 @@ function aggiungiAlPasto() {
   pastiCorrenti()[pasto].push({
     nome: calcoloCorrente.nome,
     grammi: calcoloCorrente.grammi,
-    nota: notaInput.value.trim(),
+    nota: notaInput.value.trim().slice(0, MAX_NOTA),
     per100: calcoloCorrente.per100
   });
   salvaStato();
@@ -1175,11 +1382,17 @@ function ripartizioneMacro(t) {
 function rigaAlimentoHtml(voce, pasto, indice) {
   const v = calcolaVoce(voce.per100, voce.grammi);
   const nota = voce.nota ? ` · ${escapeHtml(voce.nota)}` : "";
+  // "n.d." al posto dello zero dove il dato non esiste: uno zero dichiarerebbe
+  // un'assenza misurata, che è un'altra cosa.
+  const assenti = (voce.per100 && voce.per100.assenti) || [];
+  const q = (chiave, valore) => assenti.includes(chiave)
+    ? `<abbr class="nd" title="Dato non disponibile nella tabella alimenti">n.d.</abbr>`
+    : valore;
   return `
     <div class="riga-alimento" data-pasto="${escapeHtml(pasto)}" data-indice="${indice}">
       <div class="riga-testo">
         <div class="riga-nome">${escapeHtml(voce.nome)}</div>
-        <div class="riga-dettaglio">${v.proteine} P · ${v.grassi} G · ${v.carboidrati} C${nota}</div>
+        <div class="riga-dettaglio">${q("proteine", v.proteine)} P · ${q("grassi", v.grassi)} G · ${q("carboidrati", v.carboidrati)} C${nota}</div>
       </div>
       <input type="number" class="riga-grammi" value="${v.grammi}" min="0" step="1" inputmode="numeric"
              data-pasto="${escapeHtml(pasto)}" data-indice="${indice}" aria-label="Grammi di ${escapeHtml(voce.nome)}">
@@ -1288,6 +1501,18 @@ function totaliHtml(t) {
   const bloccoGrassi = bloccoObiettivoMacro("Grassi", t.grassi, state.obiettivoGrassi, "barra-grassi");
   const bloccoCarboidrati = bloccoObiettivoMacro("Carboidrati", t.carboidrati, state.obiettivoCarboidrati, "barra-carboidrati");
 
+  // Se qualche alimento della giornata non ha un dato, il totale è per difetto
+  // e va detto: presentarlo come esatto porterebbe a decisioni sbagliate.
+  const assenti = datiAssenti(PASTI.flatMap(p => pastiCorrenti()[p]));
+  let avvisoAssenti = "";
+  if (assenti.size) {
+    const parti = Array.from(assenti.entries()).map(([k, nomi]) => {
+      const n = nomi.size;
+      return `${ETICHETTE_MACRO[k]} (${n} ${n === 1 ? "alimento" : "alimenti"})`;
+    });
+    avvisoAssenti = `<p class="totali-incompleto">Totale per difetto: la tabella non riporta ${parti.join(" · ")}.</p>`;
+  }
+
   return `
     <div class="totali">
       <div class="totali-testata">
@@ -1306,6 +1531,7 @@ function totaliHtml(t) {
         <span><i class="punto p-fat"></i>Grassi <b>${round1(t.grassi)} g</b> (${macro.fat}%)</span>
         <span><i class="punto p-carb"></i>Carboidrati <b>${round1(t.carboidrati)} g</b> (${macro.carb}%)</span>
       </div>
+      ${avvisoAssenti}
     </div>
   `;
 }
@@ -1610,12 +1836,12 @@ function apriSostituzione(pasto, indice) {
       candidati.map(c => ({ chiave: c.chiave, grammi: c.grammi })));
   }
 
-  sostituisciOverlay.classList.remove("hidden");
+  apriDialogo(sostituisciOverlay);
 }
 
 function chiudiSostituzione() {
   sostituzioneInCorso = null;
-  sostituisciOverlay.classList.add("hidden");
+  chiudiDialogo(sostituisciOverlay);
   sostituisciElenco.dataset.candidati = "[]";
 }
 
@@ -1628,15 +1854,22 @@ function applicaSostituzione(indiceCandidato) {
   if (!scelto || !voce || !foodMap.has(scelto.chiave)) return;
 
   const nuovoNome = formattaNome(scelto.chiave);
+  const notaPersa = voce.nota;
   registraAnnulla(conNomeGiornata(`sostituzione di ${voce.nome} con ${nuovoNome}`));
   voce.nome = nuovoNome;
   voce.grammi = scelto.grammi;
   voce.per100 = foodMap.get(scelto.chiave);
+  // La nota descriveva l'alimento di prima ("cotta al dente" su una pasta):
+  // portarla sul sostituto scriverebbe una sciocchezza, che finirebbe anche sul
+  // foglio del paziente. Si toglie, e lo si dice.
+  voce.nota = "";
 
   chiudiSostituzione();
   salvaStato();
   renderGiornata();
-  mostraToast(`Sostituito con ${nuovoNome}`);
+  mostraToast(notaPersa
+    ? `Sostituito con ${nuovoNome}: la nota «${notaPersa}» è stata rimossa`
+    : `Sostituito con ${nuovoNome}`);
 }
 
 // ---------- Copia di un pasto in altre giornate ----------
@@ -1669,12 +1902,12 @@ function apriCopiaPasto(pasto) {
   }).join("");
 
   copiaPastoErrore.classList.add("hidden");
-  copiaPastoOverlay.classList.remove("hidden");
+  apriDialogo(copiaPastoOverlay);
 }
 
 function chiudiCopiaPasto() {
   pastoDaCopiare = null;
-  copiaPastoOverlay.classList.add("hidden");
+  chiudiDialogo(copiaPastoOverlay);
 }
 
 function confermaCopiaPasto() {
@@ -1722,7 +1955,9 @@ function testoPasto(pasto, pasti) {
     const nota = voce.nota ? ` (${voce.nota})` : "";
     return `- ${voce.nome}: ${voce.grammi} g${nota}`;
   });
-  return `${pasto.toUpperCase()} — ${arrotonda(t.kcal)} kcal\n${righe.join("\n")}`;
+  const meta = obiettivoPasto(pasto);
+  const kcalPasto = meta ? `${arrotonda(t.kcal)} / ${arrotonda(meta)} kcal` : `${arrotonda(t.kcal)} kcal`;
+  return `${pasto.toUpperCase()} — ${kcalPasto}\n${righe.join("\n")}`;
 }
 
 // Riga dei macronutrienti, con l'obiettivo scritto come "93,3/109 g" per i
@@ -1958,9 +2193,16 @@ function bloccoStampaGiornata(giornata, conNome) {
         <td class="num">${v.carboidrati}</td>
       </tr>`;
     }).join("");
+    // Con la ripartizione attiva il foglio di lavoro riporta anche l'obiettivo
+    // del pasto: era impostato a schermo ma sulla carta non compariva, e chi lo
+    // legge non aveva con cosa confrontare le calorie.
+    const meta = obiettivoPasto(pasto);
+    const kcalPasto = meta
+      ? `${arrotonda(tp.kcal)} / ${arrotonda(meta)} kcal`
+      : `${arrotonda(tp.kcal)} kcal`;
     return `
       <div class="stampa-pasto">
-        <h3><span>${pasto}</span><span>${arrotonda(tp.kcal)} kcal</span></h3>
+        <h3><span>${pasto}</span><span>${kcalPasto}</span></h3>
         <table class="stampa-tabella">
           <thead><tr><th>Alimento</th><th class="num">Quantità</th><th class="num">kcal</th><th class="num">Prot.</th><th class="num">Grassi</th><th class="num">Carb.</th></tr></thead>
           <tbody>${righe}</tbody>
@@ -2216,11 +2458,11 @@ function testoIstruzioniInstallazione() {
 
 function apriIstruzioniInstallazione() {
   installaIstruzioni.innerHTML = testoIstruzioniInstallazione();
-  installaOverlay.classList.remove("hidden");
+  apriDialogo(installaOverlay);
 }
 
 function chiudiIstruzioniInstallazione() {
-  installaOverlay.classList.add("hidden");
+  chiudiDialogo(installaOverlay);
 }
 
 async function avviaInstallazione() {
@@ -2646,6 +2888,19 @@ function collegaEventi() {
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") chiudiCopiaPasto();
   });
+
+  // Il fuoco non deve scappare dal dialogo aperto verso la pagina dietro.
+  document.addEventListener("keydown", trattieniFuoco);
+
+  // Copia di sicurezza su file
+  esportaBtn.addEventListener("click", esportaDati);
+  importaBtn.addEventListener("click", () => importaFile.click());
+  importaFile.addEventListener("change", async () => {
+    await importaDati(importaFile.files && importaFile.files[0]);
+    // Azzerato per poter ricaricare due volte di seguito lo stesso file.
+    importaFile.value = "";
+  });
+  cancellaTuttoBtn.addEventListener("click", cancellaTutto);
 
   // Sostituzioni equivalenti
   sostituisciAnnullaBtn.addEventListener("click", chiudiSostituzione);

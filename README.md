@@ -12,6 +12,37 @@ calorie e macronutrienti. Nasce come modalità interna del sito nutrizionista ed
 - **Funziona offline** e si installa come app (PWA): dopo la prima apertura il
   service worker tiene una copia dei file.
 
+## I dati e il loro rischio
+
+Vivono in un browser solo. Non c'è nessuna copia altrove: una pulizia dei dati
+di navigazione, un browser reinstallato o un telefono cambiato li porta via.
+Per questo il riquadro **«I tuoi dati»** in fondo alla pagina esporta tutto in
+un file JSON — diete, profili e alimenti creati — e lo ricarica. Quel file è
+l'unica copia di sicurezza esistente; l'importazione **sostituisce** il
+contenuto del browser, non lo fonde.
+
+Se il browser rifiuta di salvare (navigazione privata, memoria del sito
+bloccata) compare un avviso fisso in cima alla pagina: prima si continuava a
+lavorare credendo che tutto fosse al sicuro.
+
+Nel salvataggio finiscono **dati di salute** — sesso, età, peso, altezza — e,
+se li si scrive nel nome della dieta, anche dati identificativi del paziente.
+Sono in chiaro, come in qualunque `localStorage`. Meglio un codice o le
+iniziali che nome e cognome per esteso. «Cancella tutto» rimuove ogni traccia
+dal dispositivo.
+
+## Sicurezza
+
+- **Nessuna dipendenza esterna, nessuna chiamata di rete fuori dominio**: la
+  superficie d'attacco è quasi nulla.
+- Ogni dato scritto dall'utente passa da `escapeHtml` prima di finire in
+  pagina: nomi di dieta, di giornata, di alimento, note e categorie.
+- La **Content-Security-Policy** è dichiarata in un `<meta>` di `index.html`,
+  perché `_headers` su GitHub Pages non viene applicato (vedi il commento in
+  testa a quel file). Resta scoperta `frame-ancestors`, che in un `<meta>` non
+  è ammessa: per difendersi dall'incorniciamento in un iframe servono header
+  veri, cioè un hosting che li permetta.
+
 ## Diete, giornate, pasti
 
 Tre livelli, dal più grande al più piccolo:
@@ -72,7 +103,9 @@ Il pulsante ⇄ su ogni riga propone alimenti che, alla giusta quantità, danno 
 **stesse calorie** di quello inserito. Le proposte restano nella categoria
 dell'alimento di partenza — un formaggio al posto di una verdura non è una
 sostituzione — e sono ordinate per differenza di proteine, mostrata insieme a
-quella di grassi e carboidrati. Un alimento personalizzato non ha categoria: in
+quella di grassi e carboidrati. La **nota viene rimossa**: descriveva
+l'alimento di prima, e «pane integrale — cotta al dente» finirebbe sul foglio
+del paziente. Un alimento personalizzato non ha categoria: in
 quel caso si cerca fra tutti. Escluse le quantità sopra i 500 g, che sono
 equivalenze solo sulla carta.
 
@@ -109,8 +142,9 @@ per identificare l'alimento quando la tabella verrà aggiornata.
 
 Un valore a **−2 significa «dato non disponibile»**, non zero: è la convenzione
 del foglio di partenza. Sono 41 alimenti (per esempio i carboidrati del
-parmigiano). L'app li tratta come zero, quindi in quei casi il totale della
-giornata è leggermente sottostimato.
+parmigiano). L'app non lo confonde più con uno zero: sulla riga scrive «n.d.» e
+sotto il totale della giornata avverte che il conto è **per difetto**, dicendo
+quale nutriente manca e in quanti alimenti.
 
 Per sostituire la tabella: si riesporta il foglio, si tolgono le righe di
 categoria, si ripuliscono i nomi dal nome scientifico fra parentesi quadre e si

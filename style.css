@@ -553,6 +553,56 @@ button.danger:hover:not(:disabled) { background: var(--danger-hover); }
 }
 .riga-sostituisci:hover { color: var(--accent); background: var(--accent-tint); }
 
+/* ---------- Dati non disponibili ---------- */
+
+/* "n.d." non è uno zero: va distinto a vista, non solo nel titolo del tooltip. */
+.nd {
+  border-bottom: 1px dotted currentColor;
+  text-decoration: none;
+  cursor: help;
+  font-style: italic;
+}
+.totali-incompleto {
+  margin: 10px 0 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--surface-alt-2);
+  border-left: 3px solid var(--fat);
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+/* ---------- Avviso: il browser non salva ---------- */
+
+.avviso-salvataggio {
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--danger-tint);
+  border: 1px solid var(--danger);
+  color: var(--danger-text);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+
+/* ---------- I tuoi dati ---------- */
+
+.card-dati .riga-bottoni { margin-top: 12px; }
+/* Il campo file resta nel flusso ma invisibile: nascosto con display:none
+   alcuni browser ignorano il clic programmato. */
+.campo-file {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  opacity: 0;
+  pointer-events: none;
+}
+.hint-privacy {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
 .menu-separatore {
   height: 1px;
   margin: 4px 6px;
