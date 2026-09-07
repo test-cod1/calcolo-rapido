@@ -262,7 +262,14 @@
 
     <div class="quantita-riga">
       <input type="number" id="quantita-input" min="0" step="1" placeholder="es. 100" inputmode="decimal">
+      <!-- Per i liquidi l'unità diventa una scelta: i valori nutrizionali sono
+           per 100 g, quindi i millilitri vengono convertiti con la densità
+           dell'alimento. Per tutto il resto resta l'etichetta fissa. -->
       <span class="unita" id="quantita-unita">g</span>
+      <div class="segmented unita-scelta hidden" id="unita-gruppo" role="group" aria-label="Unità di misura">
+        <button type="button" data-unita="ml">ml</button>
+        <button type="button" data-unita="g">g</button>
+      </div>
     </div>
     <p class="hint" id="modo-nota">Scrivi i grammi: calcoliamo calorie e macronutrienti.</p>
 

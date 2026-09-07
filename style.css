@@ -553,6 +553,21 @@ button.danger:hover:not(:disabled) { background: var(--danger-hover); }
 }
 .riga-sostituisci:hover { color: var(--accent); background: var(--accent-tint); }
 
+/* ---------- Scelta dell'unità per i liquidi ---------- */
+
+/* Prende il posto dell'etichetta fissa "g" accanto alla quantità, quindi non
+   deve allargare la riga: due scomparti stretti, stessa altezza del campo. */
+.unita-scelta {
+  flex: none;
+  width: auto;
+  align-self: stretch;
+}
+.unita-scelta button {
+  padding: 0 14px;
+  font-size: 0.95rem;
+  font-variant-numeric: tabular-nums;
+}
+
 /* ---------- Dati non disponibili ---------- */
 
 /* "n.d." non è uno zero: va distinto a vista, non solo nel titolo del tooltip. */

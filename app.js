@@ -241,6 +241,7 @@ let foodNames = [];             // chiavi ordinate per nome visualizzato
 let indiceRicerca = [];         // stesse voci, con i testi già normalizzati
 let displayToKey = new Map();   // nome visualizzato normalizzato -> chiave
 let categoriaDi = new Map();    // chiave -> categoria (solo per gli alimenti di base)
+let densitaDi = new Map();      // chiave -> g/ml, solo per i liquidi
 let alimentoSelezionato = null; // { chiave, nome, per100 }
 let modoCalcolo = "grammi";     // grammi | kcal | proteine
 let calcoloCorrente = null;     // risultato mostrato nell'anteprima
@@ -306,6 +307,7 @@ const alimentoEliminaBtn = el("alimento-elimina-btn");
 const modoGruppo = el("modo-gruppo");
 const quantitaInput = el("quantita-input");
 const quantitaUnita = el("quantita-unita");
+const unitaGruppo = el("unita-gruppo");
 const modoNota = el("modo-nota");
 
 const preview = el("preview");
@@ -527,7 +529,8 @@ function leggiPasti(salvati) {
       nome: String(v.nome || "Alimento").slice(0, MAX_NOME_ALIMENTO),
       grammi: Math.max(0, Number(v.grammi) || 0),
       nota: String(v.nota || "").slice(0, MAX_NOTA),
-      per100: normalizzaPer100(v.per100)
+      per100: normalizzaPer100(v.per100),
+      ...leggiUnita(v)
     }));
   });
   return pasti;
@@ -684,6 +687,57 @@ function renderDiete() {
   if (state.obiettivo > 0) parti.push(`obiettivo ${arrotonda(state.obiettivo)} kcal`);
   parti.push(`colore ${nomeColore(state.colore)}`);
   dietaInfo.textContent = parti.join(" · ");
+}
+
+// ---------- Millilitri per i liquidi ----------
+// I valori nutrizionali della tabella sono per 100 GRAMMI, sempre. I
+// millilitri non sono un'altra etichetta per la stessa cosa: 100 ml di olio
+// pesano 91 g, cioè 81 kcal in meno di 100 g. Quindi il grammo resta l'unità
+// dei conti, e i millilitri sono ciò che si scrive e si legge, convertiti con
+// la densità dell'alimento.
+//
+// Le densità non vengono dal CREA, che non le pubblica: sono valori di
+// riferimento standard a 20 °C, annotati in foods.json sui soli liquidi.
+
+// Unità scelta nel riquadro di inserimento ("g" oppure "ml").
+let unitaCorrente = "g";
+
+function grammiDaMl(ml, densita) {
+  return ml * densita;
+}
+
+function mlDaGrammi(grammi, densita) {
+  return grammi / densita;
+}
+
+// Numeri all'italiana, senza decimali inutili: 250 ml, non "250,0 ml".
+function fmtNumero(n) {
+  return Number(n).toLocaleString("it-IT");
+}
+
+// Quantità e unità di una voce già inserita, per mostrarla come è stata
+// scritta. Una voce salvata prima di questa funzione non ha unità: è in grammi.
+function quantitaVoce(voce) {
+  if (voce.unita === "ml" && Number(voce.densita) > 0) {
+    const ml = Number(voce.ml) > 0 ? Number(voce.ml) : mlDaGrammi(voce.grammi, voce.densita);
+    return { valore: round1(ml), unita: "ml" };
+  }
+  return { valore: voce.grammi, unita: "g" };
+}
+
+function testoQuantitaVoce(voce) {
+  const q = quantitaVoce(voce);
+  return `${fmtNumero(q.valore)} ${q.unita}`;
+}
+
+// Rilegge dal salvataggio i campi dell'unità, scartando quello che non torna:
+// senza densità i millilitri non si possono convertire, quindi si torna ai
+// grammi invece di mostrare un valore inventato.
+function leggiUnita(v) {
+  const densita = Number(v && v.densita);
+  if (!(densita > 0) || (v && v.unita) !== "ml") return {};
+  const ml = Number(v.ml);
+  return ml > 0 ? { unita: "ml", densita, ml } : { unita: "ml", densita };
 }
 
 // ---------- Copia di sicurezza su file ----------
@@ -956,8 +1010,11 @@ function datiAssenti(voci) {
 function ricostruisciElenco() {
   foodMap = new Map();
   categoriaDi = new Map();
+  densitaDi = new Map();
   alimentiBase.forEach(a => {
     foodMap.set(a.nome, normalizzaPer100(a));
+    // Densità: presente solo sui liquidi, è ciò che abilita i millilitri.
+    if (Number(a.densita) > 0) densitaDi.set(a.nome, Number(a.densita));
     // La categoria non serve al calcolo, ma senza di essa le sostituzioni
     // proporrebbero un formaggio al posto di una verdura.
     if (a.categoria) categoriaDi.set(a.nome, String(a.categoria));
@@ -1096,13 +1153,49 @@ function selezionaAlimento(chiave) {
     alimentoScelto.classList.add("hidden");
   } else {
     const per100 = foodMap.get(chiave);
-    alimentoSelezionato = { chiave, nome: formattaNome(chiave), per100 };
+    const densita = densitaDi.get(chiave) || null;
+    alimentoSelezionato = { chiave, nome: formattaNome(chiave), per100, densita };
     alimentoSceltoNome.textContent = alimentoSelezionato.nome;
+    // Per un liquido si dice subito quanto pesano 100 ml: è la conversione che
+    // l'app applica, e vederla scritta evita di doversi fidare al buio.
+    const conversione = densita ? ` · 100 ml = ${round1(grammiDaMl(100, densita))} g` : "";
     alimentoSceltoPer100.textContent =
-      `per 100 g: ${round1(per100.kcal)} kcal · ${round1(per100.proteine)} P · ${round1(per100.grassi)} G · ${round1(per100.carboidrati)} C`;
+      `per 100 g: ${round1(per100.kcal)} kcal · ${round1(per100.proteine)} P · ${round1(per100.grassi)} G · ${round1(per100.carboidrati)} C${conversione}`;
     alimentoEliminaBtn.classList.toggle("hidden", !ePersonalizzato(chiave));
     alimentoScelto.classList.remove("hidden");
   }
+  // I liquidi partono in millilitri, che è il modo in cui li si misura davvero;
+  // i solidi restano ai grammi. Il selettore permette comunque di cambiare.
+  unitaCorrente = (alimentoSelezionato && alimentoSelezionato.densita) ? "ml" : "g";
+  aggiornaSelettoreUnita();
+  aggiornaAnteprima();
+}
+
+// Il selettore g/ml compare solo dove ha senso: alimento liquido e quantità
+// espressa come peso. Partendo da calorie o da proteine il numero digitato non
+// è una quantità di alimento, quindi l'unità non è in gioco.
+function aggiornaSelettoreUnita() {
+  const liquido = !!(alimentoSelezionato && alimentoSelezionato.densita);
+  const attivo = liquido && modoCalcolo === "grammi";
+  unitaGruppo.classList.toggle("hidden", !attivo);
+  quantitaUnita.classList.toggle("hidden", attivo);
+  if (!liquido) unitaCorrente = "g";
+  if (!attivo) return;
+  Array.from(unitaGruppo.children).forEach(b =>
+    b.classList.toggle("attivo", b.dataset.unita === unitaCorrente));
+}
+
+function impostaUnita(unita) {
+  if (!alimentoSelezionato || !alimentoSelezionato.densita || unita === unitaCorrente) return;
+  const densita = alimentoSelezionato.densita;
+  // Il numero già digitato viene convertito invece di essere azzerato: chi ha
+  // scritto 200 ml e passa ai grammi si aspetta di leggere 206.
+  const valore = parseFloat(quantitaInput.value);
+  if (valore > 0) {
+    quantitaInput.value = round1(unita === "g" ? grammiDaMl(valore, densita) : mlDaGrammi(valore, densita));
+  }
+  unitaCorrente = unita;
+  aggiornaSelettoreUnita();
   aggiornaAnteprima();
 }
 
@@ -1118,6 +1211,7 @@ function impostaModo(modo) {
   if (modo === "grammi") quantitaUnita.textContent = "g";
   else if (modo === "kcal") quantitaUnita.textContent = "kcal";
   else quantitaUnita.textContent = "g prot.";
+  aggiornaSelettoreUnita();
   aggiornaAnteprima();
 }
 
@@ -1125,7 +1219,12 @@ function impostaModo(modo) {
 // Restituisce null se il calcolo non è possibile (es. grammi di proteine
 // richiesti da un alimento che non ne contiene).
 function grammiDaValore(per100, valore) {
-  if (modoCalcolo === "grammi") return valore;
+  if (modoCalcolo === "grammi") {
+    // In millilitri il numero digitato non è un peso: va convertito, altrimenti
+    // 100 ml di olio verrebbero contati come 100 g, cioè 81 kcal di troppo.
+    const densita = alimentoSelezionato && alimentoSelezionato.densita;
+    return (unitaCorrente === "ml" && densita) ? grammiDaMl(valore, densita) : valore;
+  }
   const per1g = (modoCalcolo === "kcal" ? per100.kcal : per100.proteine) / 100;
   if (per1g <= 0) return null;
   return valore / per1g;
@@ -1189,9 +1288,25 @@ function aggiornaAnteprima() {
   }
 
   calcoloCorrente = { nome: alimentoSelezionato.nome, grammi: v.grammi, per100: alimentoSelezionato.per100 };
+  // L'unità con cui è stata scritta la quantità resta attaccata alla voce: la
+  // riga, la stampa e il testo copiato la ripetono come l'ha scritta chi compone
+  // la dieta, invece di ritradurla in grammi.
+  if (unitaCorrente === "ml" && alimentoSelezionato.densita && modoCalcolo === "grammi") {
+    calcoloCorrente.unita = "ml";
+    calcoloCorrente.densita = alimentoSelezionato.densita;
+    calcoloCorrente.ml = round1(valore);
+  } else if (alimentoSelezionato.densita) {
+    // Liquido misurato a peso: la densità serve comunque, per poter passare ai
+    // millilitri più tardi senza riaprire la tabella.
+    calcoloCorrente.densita = alimentoSelezionato.densita;
+  }
 
   previewKcal.textContent = v.kcal;
-  previewGrammi.textContent = modoCalcolo === "grammi" ? "" : `≈ ${v.grammi} g`;
+  // Con i millilitri il peso corrispondente si mostra SEMPRE, anche partendo
+  // dal volume: è il numero con cui sono stati fatti i conti.
+  previewGrammi.textContent = (unitaCorrente === "ml" || modoCalcolo !== "grammi")
+    ? `≈ ${v.grammi} g`
+    : "";
   previewProt.textContent = v.proteine;
   previewFat.textContent = v.grassi;
   previewCarb.textContent = v.carboidrati;
@@ -1350,7 +1465,9 @@ function aggiungiAlPasto() {
     nome: calcoloCorrente.nome,
     grammi: calcoloCorrente.grammi,
     nota: notaInput.value.trim().slice(0, MAX_NOTA),
-    per100: calcoloCorrente.per100
+    per100: calcoloCorrente.per100,
+    ...(calcoloCorrente.densita ? { densita: calcoloCorrente.densita } : {}),
+    ...(calcoloCorrente.unita === "ml" ? { unita: "ml", ml: calcoloCorrente.ml } : {})
   });
   salvaStato();
   renderGiornata();
@@ -1379,7 +1496,11 @@ function ripartizioneMacro(t) {
   };
 }
 
-function rigaAlimentoHtml(voce, pasto, indice) {
+// Dettaglio dei macronutrienti di una riga. Sta in una funzione sola perché la
+// usano sia il disegno completo sia il ridisegno parziale durante la correzione
+// di un peso: quando erano due, il secondo riscriveva il testo e portava via i
+// "n.d.".
+function dettaglioRigaHtml(voce) {
   const v = calcolaVoce(voce.per100, voce.grammi);
   const nota = voce.nota ? ` · ${escapeHtml(voce.nota)}` : "";
   // "n.d." al posto dello zero dove il dato non esiste: uno zero dichiarerebbe
@@ -1388,15 +1509,22 @@ function rigaAlimentoHtml(voce, pasto, indice) {
   const q = (chiave, valore) => assenti.includes(chiave)
     ? `<abbr class="nd" title="Dato non disponibile nella tabella alimenti">n.d.</abbr>`
     : valore;
+  return `${q("proteine", v.proteine)} P · ${q("grassi", v.grassi)} G · ${q("carboidrati", v.carboidrati)} C${nota}`;
+}
+
+function rigaAlimentoHtml(voce, pasto, indice) {
+  const v = calcolaVoce(voce.per100, voce.grammi);
+  const quantita = quantitaVoce(voce);
   return `
     <div class="riga-alimento" data-pasto="${escapeHtml(pasto)}" data-indice="${indice}">
       <div class="riga-testo">
         <div class="riga-nome">${escapeHtml(voce.nome)}</div>
-        <div class="riga-dettaglio">${q("proteine", v.proteine)} P · ${q("grassi", v.grassi)} G · ${q("carboidrati", v.carboidrati)} C${nota}</div>
+        <div class="riga-dettaglio">${dettaglioRigaHtml(voce)}</div>
       </div>
-      <input type="number" class="riga-grammi" value="${v.grammi}" min="0" step="1" inputmode="numeric"
-             data-pasto="${escapeHtml(pasto)}" data-indice="${indice}" aria-label="Grammi di ${escapeHtml(voce.nome)}">
-      <span class="riga-unita">g</span>
+      <input type="number" class="riga-grammi" value="${quantita.valore}" min="0" step="1" inputmode="decimal"
+             data-pasto="${escapeHtml(pasto)}" data-indice="${indice}"
+             aria-label="Quantità di ${escapeHtml(voce.nome)} in ${quantita.unita === "ml" ? "millilitri" : "grammi"}">
+      <span class="riga-unita">${quantita.unita}</span>
       <span class="riga-kcal">${v.kcal} kcal</span>
       <button type="button" class="riga-sostituisci no-print" data-sostituisci-pasto="${escapeHtml(pasto)}" data-indice="${indice}"
               title="Sostituisci con un alimento equivalente" aria-label="Sostituisci ${escapeHtml(voce.nome)}">⇄</button>
@@ -1680,9 +1808,7 @@ function aggiornaCalcoliUI() {
     const voce = vocePer(riga.dataset.pasto, Number(riga.dataset.indice));
     if (!voce) return;
     const v = calcolaVoce(voce.per100, voce.grammi);
-    const nota = voce.nota ? ` · ${voce.nota}` : "";
-    riga.querySelector(".riga-dettaglio").textContent =
-      `${v.proteine} P · ${v.grassi} G · ${v.carboidrati} C${nota}`;
+    riga.querySelector(".riga-dettaglio").innerHTML = dettaglioRigaHtml(voce);
     riga.querySelector(".riga-kcal").textContent = `${v.kcal} kcal`;
   });
 
@@ -1697,6 +1823,20 @@ function aggiornaCalcoliUI() {
 
 function vocePer(pasto, indice) {
   return (pastiCorrenti()[pasto] && pastiCorrenti()[pasto][indice]) || null;
+}
+
+// Scrive la quantità di una voce a partire dal numero digitato nella riga, che
+// è nell'unità mostrata: in millilitri il peso si ricava dalla densità, ed è il
+// peso a finire nei conti. Torna false se il numero non è utilizzabile.
+function scriviQuantitaVoce(voce, valore) {
+  if (!(valore > 0)) return false;
+  if (voce.unita === "ml" && Number(voce.densita) > 0) {
+    voce.ml = round1(valore);
+    voce.grammi = Math.max(1, Math.round(grammiDaMl(voce.ml, voce.densita)));
+  } else {
+    voce.grammi = Math.max(0, Math.round(valore));
+  }
+  return true;
 }
 
 function rimuoviVoce(pasto, indice) {
@@ -1794,8 +1934,14 @@ function candidatiSostituzione(chiaveOriginale, kcalDaPareggiare, per100Original
     if (grammi < 1 || grammi > MAX_GRAMMI_SOSTITUTO) return;
 
     const v = calcolaVoce(per100, grammi);
+    // Un candidato liquido si propone in millilitri: sono l'unità con cui lo si
+    // misurerà davvero.
+    const densitaCand = densitaDi.get(chiave) || null;
+    const quantita = densitaCand
+      ? `${fmtNumero(round1(mlDaGrammi(grammi, densitaCand)))} ml`
+      : `${grammi} g`;
     candidati.push({
-      chiave, grammi, valori: v,
+      chiave, grammi, quantita, valori: v,
       dProt: round1(v.proteine - per100Originale.proteine),
       dFat: round1(v.grassi - per100Originale.grassi),
       dCarb: round1(v.carboidrati - per100Originale.carboidrati)
@@ -1821,7 +1967,7 @@ function apriSostituzione(pasto, indice) {
   const candidati = candidatiSostituzione(chiave, v.kcal, v);
 
   sostituzioneInCorso = { pasto, indice };
-  sostituisciTitolo.textContent = `Al posto di ${voce.nome} (${v.grammi} g, ${v.kcal} kcal)`;
+  sostituisciTitolo.textContent = `Al posto di ${voce.nome} (${testoQuantitaVoce(voce)}, ${v.kcal} kcal)`;
 
   if (!candidati.length) {
     sostituisciElenco.innerHTML = `<p class="hint">Nessuna alternativa utile${categoriaDi.get(chiave) ? ` nella categoria «${escapeHtml(categoriaDi.get(chiave))}»` : ""}: servirebbero quantità troppo grandi per pareggiare le calorie.</p>`;
@@ -1829,7 +1975,7 @@ function apriSostituzione(pasto, indice) {
     sostituisciElenco.innerHTML = candidati.map((c, i) => `
       <button type="button" class="sostituisci-riga" data-sost="${i}">
         <span class="sostituisci-nome">${escapeHtml(formattaNome(c.chiave))}</span>
-        <span class="sostituisci-quantita">${c.grammi} g</span>
+        <span class="sostituisci-quantita">${c.quantita}</span>
         <span class="sostituisci-delta">${segno(c.dProt)} P · ${segno(c.dFat)} G · ${segno(c.dCarb)} C</span>
       </button>`).join("");
     sostituisciElenco.dataset.candidati = JSON.stringify(
@@ -1859,6 +2005,19 @@ function applicaSostituzione(indiceCandidato) {
   voce.nome = nuovoNome;
   voce.grammi = scelto.grammi;
   voce.per100 = foodMap.get(scelto.chiave);
+  // L'unità segue il nuovo alimento: sostituendo un olio con del pane i
+  // millilitri non vogliono più dire nulla, e viceversa un liquido va espresso
+  // in millilitri anche se prima c'era un solido pesato.
+  const densitaNuova = densitaDi.get(scelto.chiave) || null;
+  if (densitaNuova) {
+    voce.densita = densitaNuova;
+    voce.unita = "ml";
+    voce.ml = round1(mlDaGrammi(voce.grammi, densitaNuova));
+  } else {
+    delete voce.densita;
+    delete voce.unita;
+    delete voce.ml;
+  }
   // La nota descriveva l'alimento di prima ("cotta al dente" su una pasta):
   // portarla sul sostituto scriverebbe una sciocchezza, che finirebbe anche sul
   // foglio del paziente. Si toglie, e lo si dice.
@@ -1953,7 +2112,7 @@ function testoPasto(pasto, pasti) {
   const t = totaliVoci(voci);
   const righe = voci.map(voce => {
     const nota = voce.nota ? ` (${voce.nota})` : "";
-    return `- ${voce.nome}: ${voce.grammi} g${nota}`;
+    return `- ${voce.nome}: ${testoQuantitaVoce(voce)}${nota}`;
   });
   const meta = obiettivoPasto(pasto);
   const kcalPasto = meta ? `${arrotonda(t.kcal)} / ${arrotonda(meta)} kcal` : `${arrotonda(t.kcal)} kcal`;
@@ -2155,7 +2314,7 @@ function bloccoPazienteGiornata(giornata, conNome) {
       const nota = voce.nota ? ` <em>(${escapeHtml(voce.nota)})</em>` : "";
       return `<tr>
         <td>${escapeHtml(voce.nome)}${nota}</td>
-        <td class="num">${v.grammi} g</td>
+        <td class="num">${testoQuantitaVoce(voce)}</td>
       </tr>`;
     }).join("");
     return `
@@ -2186,7 +2345,7 @@ function bloccoStampaGiornata(giornata, conNome) {
       const v = calcolaVoce(voce.per100, voce.grammi);
       return `<tr>
         <td>${escapeHtml(voce.nome)}${voce.nota ? ` <em>(${escapeHtml(voce.nota)})</em>` : ""}</td>
-        <td class="num">${v.grammi} g</td>
+        <td class="num">${testoQuantitaVoce(voce)}</td>
         <td class="num">${v.kcal}</td>
         <td class="num">${v.proteine}</td>
         <td class="num">${v.grassi}</td>
@@ -2655,6 +2814,11 @@ function collegaEventi() {
   });
   aggiungiBtn.addEventListener("click", aggiungiAlPasto);
 
+  unitaGruppo.addEventListener("click", (e) => {
+    const scelta = e.target.closest("[data-unita]");
+    if (scelta) impostaUnita(scelta.dataset.unita);
+  });
+
   // Diete
   dietaSelect.addEventListener("change", () => cambiaDieta(Number(dietaSelect.value)));
   dietaNuovaBtn.addEventListener("click", nuovaDieta);
@@ -2752,7 +2916,7 @@ function collegaEventi() {
     modificaPesoInCorso = {
       stato: clonaGiornate(),
       valore: campo.value,
-      descrizione: conNomeGiornata(`peso di ${voce.nome} (${voce.grammi} g)`)
+      descrizione: conNomeGiornata(`peso di ${voce.nome} (${testoQuantitaVoce(voce)})`)
     };
   });
 
@@ -2770,9 +2934,8 @@ function collegaEventi() {
     const campo = e.target.closest(".riga-grammi");
     if (!campo) return;
     const voce = vocePer(campo.dataset.pasto, Number(campo.dataset.indice));
-    const valore = Math.max(0, Math.round(Number(campo.value) || 0));
-    if (!voce || !valore) return;
-    voce.grammi = valore;
+    if (!voce) return;
+    if (!scriviQuantitaVoce(voce, Number(campo.value) || 0)) return;
     aggiornaCalcoliUI();
   });
 
@@ -2785,7 +2948,8 @@ function collegaEventi() {
     const voce = vocePer(pasto, indice);
     if (!voce) return;
     const testo = campo.value.trim();
-    const valore = Math.round(Number(testo));
+    // Lo zero si riconosce sul numero digitato, qualunque sia l'unità.
+    const valore = Number(testo);
     // Solo uno 0 scritto apposta toglie la voce. Campo lasciato vuoto, numero
     // negativo o testo incomprensibile (che nei campi numerici arriva qui come
     // stringa vuota) sono quasi sempre errori di battitura: si rimette il
@@ -2801,8 +2965,8 @@ function collegaEventi() {
       // già cambiato il peso in memoria per tenere aggiornati i totali mentre
       // si digitava, quindi ridisegnare e basta lascerebbe a video l'ultima
       // cifra battuta invece del peso di partenza.
-      const originale = modificaPesoInCorso ? Math.round(Number(modificaPesoInCorso.valore)) : NaN;
-      if (originale > 0) voce.grammi = originale;
+      const originale = modificaPesoInCorso ? Number(modificaPesoInCorso.valore) : NaN;
+      if (originale > 0) scriviQuantitaVoce(voce, originale);
       modificaPesoInCorso = null;
       renderGiornata();
       return;
@@ -2814,7 +2978,7 @@ function collegaEventi() {
       aggiornaBottoneAnnulla();
     }
     modificaPesoInCorso = null;
-    voce.grammi = valore;
+    scriviQuantitaVoce(voce, valore);
     salvaStato();
     renderGiornata();
   });

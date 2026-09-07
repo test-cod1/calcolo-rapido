@@ -560,7 +560,8 @@
   "grassi": 0.1,
   "carboidrati": 5.7,
   "categoria": "Verdure, funghi",
-  "codice": 805605
+  "codice": 805605,
+  "densita": 1.03
  },
  {
   "nome": "SUCCO DI POMODORO",
@@ -569,7 +570,8 @@
   "grassi": -2,
   "carboidrati": 3,
   "categoria": "Verdure, funghi",
-  "codice": 805698
+  "codice": 805698,
+  "densita": 1.03
  },
  {
   "nome": "TARTUFO NERO",
@@ -908,7 +910,8 @@
   "grassi": 1.9,
   "carboidrati": 0.8,
   "categoria": "Legumi e prodotti della soia",
-  "codice": 700637
+  "codice": 700637,
+  "densita": 1.03
  },
  {
   "nome": "LENTICCHIE, secche",
@@ -1233,7 +1236,8 @@
   "grassi": 1.5,
   "carboidrati": 2.4,
   "categoria": "Frutta fresca, secca, farine, succhi",
-  "codice": 3016
+  "codice": 3016,
+  "densita": 1.02
  },
  {
   "nome": "LIMONE",
@@ -1467,7 +1471,8 @@
   "grassi": 0.1,
   "carboidrati": 13.6,
   "categoria": "Frutta fresca, secca, farine, succhi",
-  "codice": 805913
+  "codice": 805913,
+  "densita": 1.05
  },
  {
   "nome": "SUCCO DI ARANCIA, non zuccherato",
@@ -1476,7 +1481,8 @@
   "grassi": 0.1,
   "carboidrati": 8.8,
   "categoria": "Frutta fresca, secca, farine, succhi",
-  "codice": 9004
+  "codice": 9004,
+  "densita": 1.04
  },
  {
   "nome": "SUCCO DI FRUTTA",
@@ -1485,7 +1491,8 @@
   "grassi": 0.1,
   "carboidrati": 14.5,
   "categoria": "Frutta fresca, secca, farine, succhi",
-  "codice": 3006
+  "codice": 3006,
+  "densita": 1.05
  },
  {
   "nome": "SUCCO DI LIMONE, fresco",
@@ -1494,7 +1501,8 @@
   "grassi": 0,
   "carboidrati": 1.4,
   "categoria": "Frutta fresca, secca, farine, succhi",
-  "codice": 414
+  "codice": 414,
+  "densita": 1.03
  },
  {
   "nome": "SUCCO DI MELA, non zuccherato",
@@ -1503,7 +1511,8 @@
   "grassi": 0.1,
   "carboidrati": 9.9,
   "categoria": "Frutta fresca, secca, farine, succhi",
-  "codice": 805914
+  "codice": 805914,
+  "densita": 1.05
  },
  {
   "nome": "SUCCO DI POMPELMO, non zuccherato",
@@ -1512,7 +1521,8 @@
   "grassi": 0.1,
   "carboidrati": 8.3,
   "categoria": "Frutta fresca, secca, farine, succhi",
-  "codice": 805922
+  "codice": 805922,
+  "densita": 1.04
  },
  {
   "nome": "SUCCO DI UVA, non zuccherato",
@@ -1521,7 +1531,8 @@
   "grassi": 0.1,
   "carboidrati": 11.7,
   "categoria": "Frutta fresca, secca, farine, succhi",
-  "codice": 53021
+  "codice": 53021,
+  "densita": 1.06
  },
  {
   "nome": "UVA",
@@ -1549,7 +1560,8 @@
   "grassi": 4.8,
   "carboidrati": 4.7,
   "categoria": "Latte e yogurt",
-  "codice": 1600
+  "codice": 1600,
+  "densita": 1.03
  },
  {
   "nome": "LATTE DI VACCA, INTERO PASTORIZZATO",
@@ -1558,7 +1570,8 @@
   "grassi": 3.6,
   "carboidrati": 4.9,
   "categoria": "Latte e yogurt",
-  "codice": 1602
+  "codice": 1602,
+  "densita": 1.03
  },
  {
   "nome": "LATTE DI VACCA, INTERO UHT",
@@ -1567,7 +1580,8 @@
   "grassi": 3.6,
   "carboidrati": 4.7,
   "categoria": "Latte e yogurt",
-  "codice": 805018
+  "codice": 805018,
+  "densita": 1.03
  },
  {
   "nome": "LATTE DI VACCA, PARZIALMENTE SCREMATO PASTORIZZATO",
@@ -1576,7 +1590,8 @@
   "grassi": 1.5,
   "carboidrati": 5,
   "categoria": "Latte e yogurt",
-  "codice": 1603
+  "codice": 1603,
+  "densita": 1.03
  },
  {
   "nome": "LATTE DI VACCA, PARZIALMENTE SCREMATO UHT",
@@ -1585,7 +1600,8 @@
   "grassi": 1.6,
   "carboidrati": 5.1,
   "categoria": "Latte e yogurt",
-  "codice": 700428
+  "codice": 700428,
+  "densita": 1.03
  },
  {
   "nome": "LATTE DI VACCA, SCREMATO PASTORIZZATO",
@@ -1594,7 +1610,8 @@
   "grassi": 0.2,
   "carboidrati": 5.3,
   "categoria": "Latte e yogurt",
-  "codice": 1604
+  "codice": 1604,
+  "densita": 1.04
  },
  {
   "nome": "LATTE DI VACCA, SCREMATO UHT",
@@ -1603,7 +1620,8 @@
   "grassi": 0.2,
   "carboidrati": 5.2,
   "categoria": "Latte e yogurt",
-  "codice": 700429
+  "codice": 700429,
+  "densita": 1.04
  },
  {
   "nome": "YOGURT DI LATTE INTERO",
@@ -3451,7 +3469,8 @@
   "grassi": 99.9,
   "carboidrati": 0,
   "categoria": "Oli, margarine, burro, panna",
-  "codice": 905
+  "codice": 905,
+  "densita": 0.91
  },
  {
   "nome": "OLIO DI OLIVA",
@@ -3460,7 +3479,8 @@
   "grassi": 100,
   "carboidrati": 0,
   "categoria": "Oli, margarine, burro, panna",
-  "codice": 901
+  "codice": 901,
+  "densita": 0.91
  },
  {
   "nome": "OLIO DI OLIVA EXTRAVERGINE",
@@ -3469,7 +3489,8 @@
   "grassi": 99.9,
   "carboidrati": 0,
   "categoria": "Oli, margarine, burro, panna",
-  "codice": 702901
+  "codice": 702901,
+  "densita": 0.91
  },
  {
   "nome": "OLIO DI SEMI DI ARACHIDI",
@@ -3478,7 +3499,8 @@
   "grassi": 100,
   "carboidrati": 0,
   "categoria": "Oli, margarine, burro, panna",
-  "codice": 100166
+  "codice": 100166,
+  "densita": 0.91
  },
  {
   "nome": "OLIO DI SEMI DI GIRASOLE",
@@ -3487,7 +3509,8 @@
   "grassi": 99.9,
   "carboidrati": 0,
   "categoria": "Oli, margarine, burro, panna",
-  "codice": 906
+  "codice": 906,
+  "densita": 0.92
  },
  {
   "nome": "OLIO DI SEMI DI MAIS",
@@ -3496,7 +3519,8 @@
   "grassi": 99.9,
   "carboidrati": 0,
   "categoria": "Oli, margarine, burro, panna",
-  "codice": 907
+  "codice": 907,
+  "densita": 0.92
  },
  {
   "nome": "OLIO DI SESAMO",
@@ -3505,7 +3529,8 @@
   "grassi": 99.7,
   "carboidrati": 0,
   "categoria": "Oli, margarine, burro, panna",
-  "codice": 909
+  "codice": 909,
+  "densita": 0.92
  },
  {
   "nome": "PANNA, 20% di lipidi (da cucina)",
@@ -3514,7 +3539,8 @@
   "grassi": 20,
   "carboidrati": 3.9,
   "categoria": "Oli, margarine, burro, panna",
-  "codice": 1905
+  "codice": 1905,
+  "densita": 1.01
  },
  {
   "nome": "PANNA, 35% di lipidi",
@@ -3523,7 +3549,8 @@
   "grassi": 35,
   "carboidrati": 3.4,
   "categoria": "Oli, margarine, burro, panna",
-  "codice": 1719
+  "codice": 1719,
+  "densita": 0.99
  },
  {
   "nome": "STRUTTO O SUGNA",
@@ -3910,7 +3937,8 @@
   "grassi": 0,
   "carboidrati": 8.8,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 777021
+  "codice": 777021,
+  "densita": 1.04
  },
  {
   "nome": "AMARI A BASSA GRADAZIONE (tra 23 e 30 %vol)",
@@ -3919,7 +3947,8 @@
   "grassi": 0,
   "carboidrati": 32.8,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 100231
+  "codice": 100231,
+  "densita": 1.03
  },
  {
   "nome": "APERITIVI (fino a 22 %vol)",
@@ -3928,7 +3957,8 @@
   "grassi": 0,
   "carboidrati": 17,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 4000
+  "codice": 4000,
+  "densita": 1.02
  },
  {
   "nome": "ARANCIATA IN LATTINA",
@@ -3937,7 +3967,8 @@
   "grassi": 0,
   "carboidrati": 10,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 3007
+  "codice": 3007,
+  "densita": 1.04
  },
  {
   "nome": "BEVANDA A BASE DI COLA",
@@ -3946,7 +3977,8 @@
   "grassi": 0,
   "carboidrati": 10.5,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 3008
+  "codice": 3008,
+  "densita": 1.04
  },
  {
   "nome": "BEVANDE GASSATE DIETETICHE",
@@ -3955,7 +3987,8 @@
   "grassi": 0,
   "carboidrati": 0.9,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 666009
+  "codice": 666009,
+  "densita": 1
  },
  {
   "nome": "BIRRA ANALCOLICA (0.3 - 0.5 %vol)",
@@ -3964,7 +3997,8 @@
   "grassi": 0,
   "carboidrati": 1.5,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 8062
+  "codice": 8062,
+  "densita": 1.02
  },
  {
   "nome": "BIRRA CHIARA SPECIALE (5.3 - 6.0 %vol)",
@@ -3973,7 +4007,8 @@
   "grassi": 0,
   "carboidrati": 3.5,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 4001
+  "codice": 4001,
+  "densita": 1.01
  },
  {
   "nome": "BIRRA SCURA SPECIALE (5.3 - 6.0 %vol)",
@@ -3982,7 +4017,8 @@
   "grassi": -2,
   "carboidrati": 1.5,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 609024
+  "codice": 609024,
+  "densita": 1.01
  },
  {
   "nome": "BRANDY",
@@ -3991,7 +4027,8 @@
   "grassi": 0,
   "carboidrati": -2,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 4002
+  "codice": 4002,
+  "densita": 0.95
  },
  {
   "nome": "CACAO AMARO, in polvere",
@@ -4018,7 +4055,8 @@
   "grassi": 0.2,
   "carboidrati": 0,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 9031
+  "codice": 9031,
+  "densita": 1
  },
  {
   "nome": "CAFFE' DECAFFEINATO, in tazza",
@@ -4027,7 +4065,8 @@
   "grassi": 0.2,
   "carboidrati": 0,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 700798
+  "codice": 700798,
+  "densita": 1
  },
  {
   "nome": "CAFFE' MOKA, in tazza",
@@ -4036,7 +4075,8 @@
   "grassi": 0.2,
   "carboidrati": 0,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 700796
+  "codice": 700796,
+  "densita": 1
  },
  {
   "nome": "CAFFE' SOLUBILE, in tazza",
@@ -4045,7 +4085,8 @@
   "grassi": -2,
   "carboidrati": -2,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 9033
+  "codice": 9033,
+  "densita": 1
  },
  {
   "nome": "CHAMPAGNE",
@@ -4054,7 +4095,8 @@
   "grassi": 0,
   "carboidrati": 1.4,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 100235
+  "codice": 100235,
+  "densita": 0.99
  },
  {
   "nome": "COGNAC",
@@ -4063,7 +4105,8 @@
   "grassi": 0,
   "carboidrati": 0.9,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 10023
+  "codice": 10023,
+  "densita": 0.95
  },
  {
   "nome": "GIN",
@@ -4072,7 +4115,8 @@
   "grassi": 0,
   "carboidrati": 0.1,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 888014
+  "codice": 888014,
+  "densita": 0.94
  },
  {
   "nome": "GRAPPA",
@@ -4081,7 +4125,8 @@
   "grassi": 0,
   "carboidrati": -2,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 4003
+  "codice": 4003,
+  "densita": 0.94
  },
  {
   "nome": "MARSALA TIPICO",
@@ -4090,7 +4135,8 @@
   "grassi": 0,
   "carboidrati": 28,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 4006
+  "codice": 4006,
+  "densita": 1.02
  },
  {
   "nome": "ORZO SOLUBILE o CAFFE' D'ORZO, in tazza",
@@ -4099,7 +4145,8 @@
   "grassi": -2,
   "carboidrati": 0.9,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 700012
+  "codice": 700012,
+  "densita": 1
  },
  {
   "nome": "PORTO",
@@ -4108,7 +4155,8 @@
   "grassi": 0,
   "carboidrati": 12,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 100242
+  "codice": 100242,
+  "densita": 1.03
  },
  {
   "nome": "RHUM",
@@ -4117,7 +4165,8 @@
   "grassi": 0,
   "carboidrati": 0,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 712023
+  "codice": 712023,
+  "densita": 0.94
  },
  {
   "nome": "SPUMANTI SECCHI",
@@ -4126,7 +4175,8 @@
   "grassi": 0,
   "carboidrati": 0.7,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 100245
+  "codice": 100245,
+  "densita": 0.99
  },
  {
   "nome": "TE' DETEINATO, in tazza",
@@ -4135,7 +4185,8 @@
   "grassi": -2,
   "carboidrati": -2,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 9029
+  "codice": 9029,
+  "densita": 1
  },
  {
   "nome": "TE', in tazza",
@@ -4144,7 +4195,8 @@
   "grassi": -2,
   "carboidrati": -2,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 700459
+  "codice": 700459,
+  "densita": 1
  },
  {
   "nome": "TISANA, in tazza",
@@ -4153,7 +4205,8 @@
   "grassi": -2,
   "carboidrati": 0.2,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 9034
+  "codice": 9034,
+  "densita": 1
  },
  {
   "nome": "VERMOUTH DOLCE",
@@ -4162,7 +4215,8 @@
   "grassi": 0,
   "carboidrati": 15.9,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 4007
+  "codice": 4007,
+  "densita": 1.04
  },
  {
   "nome": "VERMOUTH SECCO",
@@ -4171,7 +4225,8 @@
   "grassi": 0,
   "carboidrati": 3,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 4008
+  "codice": 4008,
+  "densita": 1
  },
  {
   "nome": "VINO BIANCO (13 %vol)",
@@ -4180,7 +4235,8 @@
   "grassi": 0,
   "carboidrati": 0.1,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 4009
+  "codice": 4009,
+  "densita": 0.99
  },
  {
   "nome": "VINO ROSATO (12 %vol)",
@@ -4189,7 +4245,8 @@
   "grassi": 0,
   "carboidrati": 2.5,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 9702
+  "codice": 9702,
+  "densita": 0.99
  },
  {
   "nome": "VINO ROSSO (13,5 %vol)",
@@ -4198,7 +4255,8 @@
   "grassi": 0,
   "carboidrati": 0.2,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 4010
+  "codice": 4010,
+  "densita": 0.99
  },
  {
   "nome": "VODKA",
@@ -4207,7 +4265,8 @@
   "grassi": 0,
   "carboidrati": 0,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 700639
+  "codice": 700639,
+  "densita": 0.94
  },
  {
   "nome": "WHISKY",
@@ -4216,7 +4275,8 @@
   "grassi": 0,
   "carboidrati": 0,
   "categoria": "Bevande alcoliche, analcoliche",
-  "codice": 4011
+  "codice": 4011,
+  "densita": 0.94
  },
  {
   "nome": "ACETO",
@@ -4243,7 +4303,8 @@
   "grassi": 0.2,
   "carboidrati": -2,
   "categoria": "Miscellanea",
-  "codice": 900545
+  "codice": 900545,
+  "densita": 1
  },
  {
   "nome": "BRODO VEGETALE",
@@ -4252,7 +4313,8 @@
   "grassi": 0.4,
   "carboidrati": 0.3,
   "categoria": "Miscellanea",
-  "codice": 701358
+  "codice": 701358,
+  "densita": 1
  },
  {
   "nome": "DADI PER BRODO",

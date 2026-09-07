@@ -97,6 +97,33 @@ il 15% di scostamento la pastiglia cambia colore.
 Serve anche l'obiettivo calorico della giornata: senza, le percentuali non si
 possono tradurre in calorie e l'app lo dice.
 
+### Millilitri per i liquidi
+
+I valori della tabella sono **per 100 grammi**, sempre. I millilitri non sono
+un'altra etichetta per la stessa cosa: 100 ml di olio pesano 91 g, cioè 81 kcal
+in meno di 100 g. Quindi il grammo resta l'unità dei conti, e i millilitri sono
+ciò che si scrive e si legge, convertiti con la densità dell'alimento.
+
+**62 alimenti** hanno una densità in `foods.json` e partono in millilitri: 33
+bevande, 9 succhi, 7 tipi di latte più soia e mandorle, 7 oli, 2 panne, 2 brodi.
+Il selettore accanto alla quantità permette di passare ai grammi, convertendo
+il numero già scritto. Restano a peso yogurt, burro, lardo, strutto, margarina
+e burro di arachidi, che si servono col cucchiaio o si vendono a peso; l'olio di
+cocco anche, perché sotto i 24 °C è solido.
+
+L'unità scelta resta attaccata alla voce: riga, stampa e testo copiato dicono
+«200 ml», non «206 g». Nella voce si conservano **sia** i millilitri scritti
+**sia** i grammi calcolati, così correggere e annullare non fa slittare il
+valore per arrotondamenti successivi. Le voci salvate prima di questa funzione
+non hanno unità e restano in grammi.
+
+Sostituendo un alimento l'unità segue il nuovo: un olio scambiato con del pane
+passa ai grammi, un latte scambiato con un altro latte resta in millilitri.
+
+**Attenzione alla fonte:** le densità **non** vengono dal CREA, che non le
+pubblica. Sono valori di riferimento standard a 20 °C. Per acqua, tè, caffè e
+brodo l'approssimazione è nulla; per oli e succhi è nell'ordine dell'1%.
+
 ### Sostituzioni equivalenti
 
 Il pulsante ⇄ su ogni riga propone alimenti che, alla giusta quantità, danno le
@@ -136,9 +163,12 @@ scrive. Testo più grande, perché si legge in cucina.
 una selezione ragionata, non l'elenco completo delle tabelle di composizione.
 
 Ogni voce ha nome, calorie, proteine, grassi e carboidrati per 100 g, più la
-categoria, il codice dell'alimento e — dove c'è — il nome scientifico. Categoria
-e codice non sono ancora usati dall'app: servono per il filtro per categoria e
-per identificare l'alimento quando la tabella verrà aggiornata.
+categoria, il codice dell'alimento e — dove c'è — il nome scientifico. La
+categoria serve alle sostituzioni equivalenti; il codice non è ancora usato e
+servirà a identificare l'alimento quando la tabella verrà aggiornata.
+
+Sui **62 liquidi** c'è in più il campo `densita` (g/ml), aggiunto a mano: non
+viene dal foglio di partenza. Vedi «Millilitri per i liquidi».
 
 Un valore a **−2 significa «dato non disponibile»**, non zero: è la convenzione
 del foglio di partenza. Sono 41 alimenti (per esempio i carboidrati del
