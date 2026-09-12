@@ -1268,6 +1268,10 @@ function aggiornaSelettoreUnita() {
   unitaSelect.classList.toggle("hidden", !attivo);
   quantitaUnita.classList.toggle("hidden", attivo);
   if (!misure.includes(unitaCorrente)) unitaCorrente = misure[0];
+  // Il passo segue sempre l'unità in uso, anche quando il selettore non si
+  // vede: lasciarci quello dell'alimento di prima darebbe mezzi grammi su un
+  // campo che vuole numeri interi.
+  quantitaInput.step = MISURE[unitaCorrente].passo;
   if (!attivo) {
     // Svuotato quando è nascosto: lasciarci le misure dell'alimento di prima
     // significherebbe tenere in pagina uno stato che non corrisponde a nulla.
@@ -1276,7 +1280,6 @@ function aggiornaSelettoreUnita() {
   }
   unitaSelect.innerHTML = misure.map(u =>
     `<option value="${u}"${u === unitaCorrente ? " selected" : ""}>${MISURE[u].molti}</option>`).join("");
-  quantitaInput.step = MISURE[unitaCorrente].passo;
 }
 
 function impostaUnita(unita) {
@@ -1621,7 +1624,7 @@ function rigaAlimentoHtml(voce, pasto, indice) {
         <div class="riga-nome">${escapeHtml(voce.nome)}</div>
         <div class="riga-dettaglio">${dettaglioRigaHtml(voce)}</div>
       </div>
-      <input type="number" class="riga-grammi" value="${quantita.valore}" min="0" step="1" inputmode="decimal"
+      <input type="number" class="riga-grammi" value="${quantita.valore}" min="0" step="${MISURE[quantita.unita].passo}" inputmode="decimal"
              data-pasto="${escapeHtml(pasto)}" data-indice="${indice}"
              aria-label="Quantità di ${escapeHtml(voce.nome)} in ${MISURE[quantita.unita].molti}">
       <span class="riga-unita">${etichettaMisura(quantita.unita, quantita.valore)}</span>
@@ -1908,8 +1911,12 @@ function aggiornaCalcoliUI() {
     const voce = vocePer(riga.dataset.pasto, Number(riga.dataset.indice));
     if (!voce) return;
     const v = calcolaVoce(voce.per100, voce.grammi);
+    const quantita = quantitaVoce(voce);
     riga.querySelector(".riga-dettaglio").innerHTML = dettaglioRigaHtml(voce);
     riga.querySelector(".riga-kcal").textContent = `${v.kcal} kcal`;
+    // Anche il singolare/plurale: scrivendo 2 dove c'era 1, "cucchiaio" deve
+    // diventare "cucchiai" subito, non alla conferma.
+    riga.querySelector(".riga-unita").textContent = etichettaMisura(quantita.unita, quantita.valore);
   });
 
   // Il totale sulla scheda aperta segue la correzione in corso, senza
