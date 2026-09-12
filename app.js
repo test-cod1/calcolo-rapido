@@ -709,13 +709,20 @@ function renderDiete() {
 // riferimenti d'uso comune, con il volume del cucchiaio preso a 15 ml.
 
 const ML_CUCCHIAIO = 15;
+const ML_CUCCHIAINO = 5;
 const ML_BICCHIERE = 200;
+// Un cucchiaino è un terzo di cucchiaio. Per i solidi questo evita una seconda
+// tabella di pesi: a parità di alimento la densità apparente è la stessa, quindi
+// basta dividere i grammi del cucchiaio. Tornano i valori d'uso comune —
+// zucchero 4 g, farina 3 g, cacao 2 g, miele 6,7 g.
+const CUCCHIAINI_PER_CUCCHIAIO = ML_CUCCHIAIO / ML_CUCCHIAINO;
 
 // nome: singolare e plurale, per scrivere "1 cucchiaio" e "2 cucchiai".
 const MISURE = {
   g:          { uno: "g", molti: "g", passo: 1 },
   ml:         { uno: "ml", molti: "ml", passo: 1 },
   cucchiaio:  { uno: "cucchiaio", molti: "cucchiai", passo: 0.5 },
+  cucchiaino: { uno: "cucchiaino", molti: "cucchiaini", passo: 0.5 },
   bicchiere:  { uno: "bicchiere", molti: "bicchieri", passo: 0.5 }
 };
 
@@ -724,8 +731,8 @@ let unitaCorrente = "g";
 
 // Quali misure può usare un alimento, in ordine di comodità.
 function misureDisponibili(densita, gCucchiaio) {
-  if (densita > 0) return ["ml", "cucchiaio", "bicchiere", "g"];
-  if (gCucchiaio > 0) return ["cucchiaio", "g"];
+  if (densita > 0) return ["ml", "cucchiaio", "cucchiaino", "bicchiere", "g"];
+  if (gCucchiaio > 0) return ["cucchiaio", "cucchiaino", "g"];
   return ["g"];
 }
 
@@ -740,6 +747,10 @@ function grammiDaMisura(quantita, unita, densita, gCucchiaio) {
   if (unita === "cucchiaio") {
     if (densita > 0) return quantita * ML_CUCCHIAIO * densita;
     return gCucchiaio > 0 ? quantita * gCucchiaio : null;
+  }
+  if (unita === "cucchiaino") {
+    if (densita > 0) return quantita * ML_CUCCHIAINO * densita;
+    return gCucchiaio > 0 ? quantita * gCucchiaio / CUCCHIAINI_PER_CUCCHIAIO : null;
   }
   return null;
 }
@@ -1220,11 +1231,15 @@ function selezionaAlimento(chiave) {
     alimentoSceltoNome.textContent = alimentoSelezionato.nome;
     // Le conversioni si dicono subito: sono quelle che l'app applica, e vederle
     // scritte evita di doversi fidare al buio.
-    const pesoCucchiaio = grammiDaMisura(1, "cucchiaio", densita, gCucchiaio);
+    const peso = (u) => {
+      const g = grammiDaMisura(1, u, densita, gCucchiaio);
+      return g ? `1 ${MISURE[u].uno} = ${round1(g)} g` : "";
+    };
     const conversione = [
       densita ? `100 ml = ${round1(grammiDaMisura(100, "ml", densita, gCucchiaio))} g` : "",
-      pesoCucchiaio ? `1 cucchiaio = ${round1(pesoCucchiaio)} g` : "",
-      densita ? `1 bicchiere = ${round1(grammiDaMisura(1, "bicchiere", densita, gCucchiaio))} g` : ""
+      peso("cucchiaio"),
+      peso("cucchiaino"),
+      peso("bicchiere")
     ].filter(Boolean).join(" · ");
     alimentoSceltoPer100.textContent =
       `per 100 g: ${round1(per100.kcal)} kcal · ${round1(per100.proteine)} P · ${round1(per100.grassi)} G · ${round1(per100.carboidrati)} C` +

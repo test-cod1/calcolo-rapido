@@ -97,20 +97,28 @@ il 15% di scostamento la pastiglia cambia colore.
 Serve anche l'obiettivo calorico della giornata: senza, le percentuali non si
 possono tradurre in calorie e l'app lo dice.
 
-### Misure casalinghe: ml, cucchiai, bicchieri
+### Misure casalinghe: ml, cucchiai, cucchiaini, bicchieri
 
 I valori della tabella sono **per 100 grammi**, sempre. Millilitri, cucchiai e
 bicchieri non sono altre etichette per la stessa cosa: 100 ml di olio pesano
 91 g, cioè 81 kcal in meno di 100 g. Il grammo resta l'unità dei conti, e la
 misura casalinga è ciò che si scrive e si legge.
 
+I volumi di riferimento sono **cucchiaio 15 ml**, **cucchiaino 5 ml**,
+**bicchiere 200 ml**.
+
 Due strade per arrivare ai grammi, perché sono due problemi diversi:
 
-- i **liquidi** hanno una densità (`densita`, in g/ml): un cucchiaio è 15 ml di
-  quel liquido, un bicchiere 200 ml, e il peso si ricava moltiplicando;
+- i **liquidi** hanno una densità (`densita`, in g/ml): il peso si ricava
+  moltiplicando il volume della misura per la densità;
 - i **solidi** no. Un cucchiaio di farina pesa 9 g, non 15: fra i granelli c'è
   aria, e la densità apparente non si deduce da nulla. Per loro `foods.json`
   porta direttamente i grammi di un cucchiaio raso (`gCucchiaio`).
+
+Il **cucchiaino non ha una tabella propria**: è un terzo di cucchiaio, e a
+parità di alimento la densità apparente è la stessa, quindi si ottiene
+dividendo. Tornano i valori d'uso comune — zucchero 4 g, farina 3 g, cacao 2 g,
+miele 6,7 g, olio 4,6 g.
 
 Il bicchiere esiste solo per i liquidi: un bicchiere di farina non è una misura
 che qualcuno usi in cucina.
@@ -123,12 +131,13 @@ di arachidi, maionese, concentrato di pomodoro, yogurt).
 
 Ogni alimento parte dalla misura più naturale — millilitri per i liquidi,
 cucchiai per zucchero e farina, grammi per il resto — e il menù accanto alla
-quantità permette di cambiare, convertendo il numero già scritto. Sulla scheda
-dell'alimento sono scritte le conversioni che l'app applica, e mezzi cucchiai
-si possono scrivere (passo 0,5).
+quantità permette di cambiare, convertendo il numero già scritto (1 cucchiaio
+diventa 3 cucchiaini, poi 12 g, e tornando indietro di nuovo 1 cucchiaio).
+Sulla scheda dell'alimento sono scritte le conversioni che l'app applica, e
+mezze dosi si possono scrivere (passo 0,5).
 
 L'unità resta attaccata alla voce: riga, stampa e testo copiato dicono
-«2 cucchiai» e «1 bicchiere», con singolare e plurale corretti. Nella voce si
+«2 cucchiaini» e «1 bicchiere», con singolare e plurale corretti. Nella voce si
 conservano **sia** la quantità scritta **sia** i grammi calcolati, così
 correggere e annullare non fa slittare il valore per arrotondamenti successivi.
 Le voci salvate prima non hanno unità e restano in grammi; quelle della prima
@@ -139,9 +148,10 @@ pane passa ai grammi.
 
 **Attenzione alla fonte:** densità e grammi per cucchiaio **non** vengono dal
 CREA, che non li pubblica. Sono valori di riferimento d'uso comune, con la
-densità a 20 °C e il cucchiaio preso a **15 ml** (un cucchiaio raso da tavola).
-Chi segue la convenzione dietetica per cui «un cucchiaio d'olio = 10 g» deve
-saperlo: qui un cucchiaio d'olio pesa 13,7 g, che è il volume reale.
+densità a 20 °C e i volumi delle misure presi come sopra (cucchiaio e
+cucchiaino rasi). Chi segue la convenzione dietetica per cui «un cucchiaio
+d'olio = 10 g» deve saperlo: qui un cucchiaio d'olio pesa 13,7 g e un
+cucchiaino 4,6 g, che sono i volumi reali.
 
 ### Sostituzioni equivalenti
 
