@@ -155,15 +155,46 @@ cucchiaino 4,6 g, che sono i volumi reali.
 
 ### Sostituzioni equivalenti
 
-Il pulsante ⇄ su ogni riga propone alimenti che, alla giusta quantità, danno le
-**stesse calorie** di quello inserito. Le proposte restano nella categoria
-dell'alimento di partenza — un formaggio al posto di una verdura non è una
-sostituzione — e sono ordinate per differenza di proteine, mostrata insieme a
-quella di grassi e carboidrati. La **nota viene rimossa**: descriveva
-l'alimento di prima, e «pane integrale — cotta al dente» finirebbe sul foglio
-del paziente. Un alimento personalizzato non ha categoria: in
-quel caso si cerca fra tutti. Escluse le quantità sopra i 500 g, che sono
-equivalenze solo sulla carta.
+Il pulsante ⇄ su ogni riga propone alimenti che, alla giusta quantità, danno
+all'incirca le **stesse calorie** di quello inserito. Due scelte le rendono
+usabili su una dieta vera.
+
+**Si pesca nel gruppo alimentare, non nella categoria.** Le 17 categorie di
+`foods.json` sono descrittive e troppo strette: carni, pesci, uova e legumi
+stanno in quattro elenchi diversi, quindi al posto del pollo arrivava solo
+altra carne — tacchino, gallina. I gruppi raccolgono le categorie che per una
+sostituzione valgono lo stesso, e al posto del pollo compaiono anche merluzzo,
+uova e legumi. Formaggi e salumi restano un gruppo a sé: a parità di calorie
+portano molti più grassi e sale, e non sono il cambio di un secondo di carne ma
+una scelta diversa. Una categoria fuori dai gruppi (oggi «Miscellanea») resta
+gruppo di se stessa. Ogni riga dice da quale categoria arriva.
+
+Siccome carni e pesci sono le categorie più numerose e le più somiglianti,
+riempirebbero da sole l'elenco e i legumi resterebbero sempre sotto il taglio.
+Perciò **ogni categoria del gruppo porta le sue tre migliori**, e i posti che
+restano vanno alle migliori in assoluto.
+
+**Le quantità sono porzioni, non risultati di una divisione.** «138 g di pollo»
+è un numero che nessuno pesa e che promette al paziente una precisione che il
+calcolo non ha, visto che parte da valori medi di tabella: si prende il numero
+più vicino di una scala d'uso comune (…120, 125, 130, 140, 150, 160, 175…) e
+diventano 140 g. Sotto i 20 si resta al passo di uno, perché su un condimento
+da 10 g saltare a 12 sposterebbe le calorie del 20%. Le misure casalinghe si
+arrotondano invece al mezzo cucchiaio, e l'arrotondamento avviene **nell'unità
+con cui l'alimento si misurerà**, altrimenti i «1,4 cucchiai» tornerebbero
+dalla porta di servizio.
+
+Le calorie scritte su ogni riga sono quindi quelle **vere della porzione
+arrotondata**, con fra parentesi lo scarto rispetto alla voce di partenza,
+accanto a quelli di proteine, grassi e carboidrati. Chi si scosta di più
+dell'8% (mai meno di 2 kcal) viene scartato: senza quel limite, al posto di una
+tazza di brodo da 7 kcal veniva proposto mezzo cucchiaio di maionese, 46 kcal,
+perché una misura casalinga non scende sotto il mezzo cucchiaio.
+
+Restano fuori le quantità sopra i 500 g, che sono equivalenze solo sulla carta.
+La **nota viene rimossa**: descriveva l'alimento di prima, e «pane integrale —
+cotta al dente» finirebbe sul foglio del paziente. Un alimento personalizzato
+non ha categoria: in quel caso si cerca fra tutti.
 
 ### Spostare e scambiare un pasto
 

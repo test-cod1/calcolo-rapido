@@ -2042,6 +2042,87 @@ const MAX_SOSTITUZIONI = 15;
 // per pareggiare una fetta di formaggio.
 const MAX_GRAMMI_SOSTITUTO = 500;
 
+// I gruppi alimentari raccolgono le categorie di foods.json che, per una
+// sostituzione, valgono la stessa cosa. Le categorie da sole sono troppo
+// strette: carni, pesci, uova e legumi stanno in quattro elenchi diversi,
+// quindi al posto del pollo arrivava solo altra carne — tacchino, gallina —
+// mentre chi scrive una dieta vuole vedere anche il merluzzo e il tofu.
+//
+// Formaggi e salumi restano un gruppo a sé, fuori dalle fonti proteiche: a
+// parità di calorie portano molti più grassi e sale, e non sono il cambio di
+// un secondo di carne ma una scelta diversa.
+//
+// Una categoria che non compare qui (oggi «Miscellanea», domani una nuova)
+// resta gruppo di se stessa: si continua a pescare dentro la categoria, come
+// prima, invece di finire in un gruppo che non le appartiene.
+const GRUPPI_ALIMENTARI = [
+  ["Carni di tutti I tipi, frattaglie", "Pesci, crostacei, molluschi", "Uova", "Legumi e prodotti della soia"],
+  ["Formaggi", "Insaccati e salumi"],
+  ["Cereali, farine, pasta, crakers", "Tuberi, patate, fecola"],
+  ["Brioches, merendine, biscotti", "Dolci, ciocc, zucchero, marmellate"]
+];
+
+const gruppoDiCategoria = new Map();
+GRUPPI_ALIMENTARI.forEach((categorie, i) => {
+  categorie.forEach(c => gruppoDiCategoria.set(c, i));
+});
+
+// Due alimenti sono intercambiabili quando stanno nello stesso gruppo; per le
+// categorie fuori dai gruppi il confronto resta fra categorie.
+function stessoGruppo(categoriaA, categoriaB) {
+  if (!categoriaA || !categoriaB) return false;
+  const a = gruppoDiCategoria.get(categoriaA);
+  const b = gruppoDiCategoria.get(categoriaB);
+  return a === undefined || b === undefined ? categoriaA === categoriaB : a === b;
+}
+
+// Le categorie dalle quali si sta pescando, per dirlo quando non si trova
+// niente: «fra carni, pesci, uova e legumi» spiega la ricerca fatta, mentre il
+// nome di un gruppo inventato qui dentro non vorrebbe dire nulla.
+function categorieCompatibili(categoria) {
+  const gruppo = gruppoDiCategoria.get(categoria);
+  return gruppo === undefined ? [categoria] : GRUPPI_ALIMENTARI[gruppo];
+}
+
+// Le quantità che si scrivono davvero su una dieta. Il conto esatto dà «138 g
+// di pollo»: un numero che nessuno pesa e che promette al paziente una
+// precisione che il calcolo non ha, visto che parte da valori medi di tabella.
+// Sotto i 20 si resta al passo di uno: su un condimento da 10 g saltare a 12
+// sposterebbe le calorie del 20%, e "13 ml di olio" si scrive su una dieta
+// quanto "140 g di pollo". Il numero tondo serve dove il numero era assurdo.
+// Si prende il numero più vicino di questa scala e le calorie mostrate sono poi
+// quelle della quantità arrotondata, non quelle di partenza: il conto torna su
+// ciò che la persona mangerà, non su ciò che sarebbe servito.
+const PORZIONI = [
+  1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20,
+  25, 30, 35, 40, 45, 50,
+  60, 70, 75, 80, 90, 100, 110, 120, 125, 130, 140, 150, 160, 175, 180, 190, 200,
+  220, 250, 280, 300, 320, 350, 400, 450, 500
+];
+
+// Quanto può scostarsi dalle calorie di partenza la porzione arrotondata.
+// Serve perché l'arrotondamento non è indolore: una misura casalinga non
+// scende sotto il mezzo cucchiaio, e al posto di una tazza di brodo da 7 kcal
+// veniva proposto mezzo cucchiaio di maionese, 46 kcal. Un'alternativa che
+// stravolge il pasto non è un'alternativa, e il numero piccolo accanto
+// ("+39") non basta a renderla innocua.
+const SCARTO_KCAL_MAX = 0.08;   // 8% delle calorie da pareggiare...
+const SCARTO_KCAL_MIN = 2;      // ...ma mai meno di 2 kcal, sulle voci minime.
+
+function porzioneVicina(valore) {
+  if (!(valore > 0)) return null;
+  return PORZIONI.reduce((migliore, p) =>
+    Math.abs(p - valore) < Math.abs(migliore - valore) ? p : migliore, PORZIONI[0]);
+}
+
+// Le misure casalinghe hanno già la loro grana, scritta in MISURE: mezzo
+// cucchiaio è una quantità che si sa fare, 0,7 cucchiai no.
+function quantitaUsabile(valore, unita) {
+  if (unita === "g" || unita === "ml") return porzioneVicina(valore);
+  const passo = (MISURE[unita] || MISURE.g).passo;
+  return Math.max(passo, Math.round(valore / passo) * passo);
+}
+
 let sostituzioneInCorso = null;
 
 function candidatiSostituzione(chiaveOriginale, kcalDaPareggiare, per100Originale) {
@@ -2052,37 +2133,90 @@ function candidatiSostituzione(chiaveOriginale, kcalDaPareggiare, per100Original
     if (chiave === chiaveOriginale) return;
     // Senza categoria (alimenti personalizzati, o voce non riconosciuta) si
     // cerca fra tutti: meglio qualche proposta in più che nessuna.
-    if (categoria && categoriaDi.get(chiave) !== categoria) return;
+    if (categoria && !stessoGruppo(categoria, categoriaDi.get(chiave))) return;
     if (!(per100.kcal > 0)) return;
 
-    const grammi = Math.round((kcalDaPareggiare * 100) / per100.kcal);
-    if (grammi < 1 || grammi > MAX_GRAMMI_SOSTITUTO) return;
+    const grammiEsatti = (kcalDaPareggiare * 100) / per100.kcal;
+    if (grammiEsatti < 1 || grammiEsatti > MAX_GRAMMI_SOSTITUTO) return;
 
-    const v = calcolaVoce(per100, grammi);
     // Un candidato liquido si propone in millilitri: sono l'unità con cui lo si
     // misurerà davvero.
     const densitaCand = densitaDi.get(chiave) || null;
     const cucchiaioCand = cucchiaioDi.get(chiave) || null;
     const misuraCand = misureDisponibili(densitaCand, cucchiaioCand)[0];
-    const qCand = misuraCand === "g"
-      ? grammi
-      : round1(misuraDaGrammi(grammi, misuraCand, densitaCand, cucchiaioCand));
-    const quantita = `${fmtNumero(qCand)} ${etichettaMisura(misuraCand, qCand)}`;
+
+    // Si arrotonda NELL'UNITÀ con cui l'alimento verrà misurato, non in grammi:
+    // arrotondare i grammi e convertirli dopo riporterebbe a galla i «1,4
+    // cucchiai» che la scala delle porzioni serve proprio a togliere.
+    const valoreEsatto = misuraCand === "g"
+      ? grammiEsatti
+      : misuraDaGrammi(grammiEsatti, misuraCand, densitaCand, cucchiaioCand);
+    const valore = quantitaUsabile(valoreEsatto, misuraCand);
+    if (!(valore > 0)) return;
+    const grammi = misuraCand === "g"
+      ? valore
+      : Math.max(1, Math.round(grammiDaMisura(valore, misuraCand, densitaCand, cucchiaioCand)));
+    if (grammi > MAX_GRAMMI_SOSTITUTO) return;
+
+    // I valori sono quelli della quantità arrotondata: è la porzione vera, ed è
+    // su quella che vanno letti lo scarto di calorie e quelli dei macro.
+    const v = calcolaVoce(per100, grammi);
+    const scarto = v.kcal - kcalDaPareggiare;
+    if (Math.abs(scarto) > Math.max(SCARTO_KCAL_MIN, kcalDaPareggiare * SCARTO_KCAL_MAX)) return;
     candidati.push({
-      chiave, grammi, quantita, valori: v,
+      chiave, grammi, valore, unita: misuraCand,
+      quantita: `${fmtNumero(valore)} ${etichettaMisura(misuraCand, valore)}`,
+      categoria: categoriaDi.get(chiave) || "",
+      valori: v,
+      dKcal: Math.round(scarto),
       dProt: round1(v.proteine - per100Originale.proteine),
       dFat: round1(v.grassi - per100Originale.grassi),
       dCarb: round1(v.carboidrati - per100Originale.carboidrati)
     });
   });
 
-  candidati.sort((a, b) =>
-    (Math.abs(a.dProt) - Math.abs(b.dProt)) || (Math.abs(a.dCarb) - Math.abs(b.dCarb)));
-  return candidati.slice(0, MAX_SOSTITUZIONI);
+  return selezioneVaria(candidati.sort(piuVicino));
 }
 
+// Fra due alternative con le stesse calorie, quella con proteine simili cambia
+// meno il piano; a parità di proteine decidono i carboidrati.
+function piuVicino(a, b) {
+  return (Math.abs(a.dProt) - Math.abs(b.dProt)) || (Math.abs(a.dCarb) - Math.abs(b.dCarb));
+}
+
+// Quante ne porta al massimo una sola categoria.
+const PER_CATEGORIA = 3;
+
+// Le prime quindici per vicinanza sarebbero quasi tutte carne e pesce: sono le
+// categorie più numerose e le più somiglianti, e i legumi — l'alternativa
+// vegetale che si cerca proprio quando si cambia un secondo — finirebbero
+// sempre sotto il taglio, perché a parità di calorie portano carboidrati e
+// quindi meno proteine. Allargare il gruppo senza questo passaggio non
+// servirebbe a niente: l'elenco resterebbe quello di prima.
+//
+// Così ogni categoria del gruppo porta le sue tre migliori, i posti che
+// restano vanno alle migliori in assoluto, e lo scarto scritto su ogni riga
+// dice a che prezzo.
+function selezioneVaria(ordinati) {
+  const scelti = [];
+  const quante = new Map();
+  ordinati.forEach(c => {
+    const n = quante.get(c.categoria) || 0;
+    if (n >= PER_CATEGORIA || scelti.length >= MAX_SOSTITUZIONI) return;
+    quante.set(c.categoria, n + 1);
+    scelti.push(c);
+  });
+  ordinati.forEach(c => {
+    if (scelti.length >= MAX_SOSTITUZIONI || scelti.includes(c)) return;
+    scelti.push(c);
+  });
+  return scelti.sort(piuVicino);
+}
+
+// Numeri all'italiana anche qui: la riga di una proposta affiancava "152 kcal"
+// alla virgola dei totali e al punto di "-0.4 P".
 function segno(n) {
-  return n > 0 ? `+${n}` : String(n);
+  return n > 0 ? `+${fmtNumero(n)}` : fmtNumero(n);
 }
 
 function apriSostituzione(pasto, indice) {
@@ -2098,16 +2232,24 @@ function apriSostituzione(pasto, indice) {
   sostituisciTitolo.textContent = `Al posto di ${voce.nome} (${testoQuantitaVoce(voce)}, ${v.kcal} kcal)`;
 
   if (!candidati.length) {
-    sostituisciElenco.innerHTML = `<p class="hint">Nessuna alternativa utile${categoriaDi.get(chiave) ? ` nella categoria «${escapeHtml(categoriaDi.get(chiave))}»` : ""}: servirebbero quantità troppo grandi per pareggiare le calorie.</p>`;
+    const categoria = categoriaDi.get(chiave);
+    const dove = categoria
+      ? ` fra ${categorieCompatibili(categoria).map(c => `«${escapeHtml(c)}»`).join(", ")}`
+      : "";
+    sostituisciElenco.innerHTML = `<p class="hint">Nessuna alternativa utile${dove}: servirebbero quantità troppo grandi per pareggiare le calorie.</p>`;
   } else {
     sostituisciElenco.innerHTML = candidati.map((c, i) => `
       <button type="button" class="sostituisci-riga" data-sost="${i}">
         <span class="sostituisci-nome">${escapeHtml(formattaNome(c.chiave))}</span>
         <span class="sostituisci-quantita">${c.quantita}</span>
-        <span class="sostituisci-delta">${segno(c.dProt)} P · ${segno(c.dFat)} G · ${segno(c.dCarb)} C</span>
+        <span class="sostituisci-categoria">${escapeHtml(c.categoria)}</span>
+        <span class="sostituisci-delta">${arrotonda(c.valori.kcal)} kcal${c.dKcal ? ` (${segno(c.dKcal)})` : ""} · ${segno(c.dProt)} P · ${segno(c.dFat)} G · ${segno(c.dCarb)} C</span>
       </button>`).join("");
+    // Si porta appresso anche l'unità scelta: la quantità applicata dev'essere
+    // quella letta nell'elenco, non una riconversione dai grammi che rimetterebbe
+    // in pagina i decimali appena tolti.
     sostituisciElenco.dataset.candidati = JSON.stringify(
-      candidati.map(c => ({ chiave: c.chiave, grammi: c.grammi })));
+      candidati.map(c => ({ chiave: c.chiave, grammi: c.grammi, unita: c.unita, valore: c.valore })));
   }
 
   apriDialogo(sostituisciOverlay);
@@ -2142,10 +2284,14 @@ function applicaSostituzione(indiceCandidato) {
   delete voce.quantita; delete voce.ml;
   if (densitaNuova) voce.densita = densitaNuova;
   if (cucchiaioNuovo) voce.gCucchiaio = cucchiaioNuovo;
-  const misuraNuova = misureDisponibili(densitaNuova, cucchiaioNuovo)[0];
+  const misuraNuova = misureDisponibili(densitaNuova, cucchiaioNuovo).includes(scelto.unita)
+    ? scelto.unita
+    : misureDisponibili(densitaNuova, cucchiaioNuovo)[0];
   if (misuraNuova !== "g") {
     voce.unita = misuraNuova;
-    voce.quantita = round1(misuraDaGrammi(voce.grammi, misuraNuova, densitaNuova, cucchiaioNuovo));
+    voce.quantita = misuraNuova === scelto.unita && scelto.valore > 0
+      ? round1(scelto.valore)
+      : round1(misuraDaGrammi(voce.grammi, misuraNuova, densitaNuova, cucchiaioNuovo));
   }
   // La nota descriveva l'alimento di prima ("cotta al dente" su una pasta):
   // portarla sul sostituto scriverebbe una sciocchezza, che finirebbe anche sul

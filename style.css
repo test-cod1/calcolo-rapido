@@ -536,6 +536,13 @@ button.danger:hover:not(:disabled) { background: var(--danger-hover); }
 .sostituisci-riga:hover { border-color: var(--accent); background: var(--accent-tint); }
 .sostituisci-nome { font-weight: 600; }
 .sostituisci-quantita { font-weight: 700; color: var(--accent); white-space: nowrap; }
+/* Da quale categoria arriva la proposta: con i gruppi alimentari l'elenco
+   mescola carne, pesce e legumi, e senza l'etichetta non si capisce più che
+   cosa si sta guardando. */
+.sostituisci-categoria {
+  font-size: 0.76rem;
+  color: var(--text-muted);
+}
 .sostituisci-delta {
   grid-column: 1 / -1;
   font-size: 0.8rem;
