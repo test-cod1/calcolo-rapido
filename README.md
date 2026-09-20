@@ -165,6 +165,28 @@ del paziente. Un alimento personalizzato non ha categoria: in
 quel caso si cerca fra tutti. Escluse le quantità sopra i 500 g, che sono
 equivalenze solo sulla carta.
 
+### Spostare e scambiare un pasto
+
+Il pulsante ⇅ nella testata di un pasto lo porta altrove senza reinserire
+niente. La destinazione è una coppia: **quale giornata** (il campo compare solo
+con più schede) e **quale pasto**. Da lì due strade:
+
+- **Sposta** — gli alimenti lasciano la casella di partenza e si aggiungono a
+  quelli già presenti nella destinazione.
+- **Scambia** — le due caselle fanno il baratto: il pranzo del giorno 1 e
+  quello del giorno 2 si invertono in un colpo solo.
+
+Con la destinazione vuota le due strade portano allo stesso punto, e il testo
+sotto i campi lo dice; con la destinazione piena dice esattamente che fine
+faranno gli alimenti di entrambe. Il pasto proposto segue la giornata scelta:
+nella stessa giornata un pasto diverso (la colazione che diventa la merenda),
+su un'altra giornata lo stesso pasto — finché non se ne sceglie uno a mano.
+
+A differenza del ⇄ di riga, che sostituisce un alimento, e della → che
+**copia** un pasto in altre giornate lasciandolo dov'è, qui le voci cambiano
+posto: dopo uno spostamento non restano in due posti. Tutto è reversibile con
+«Annulla».
+
 ### Stampa per il paziente
 
 Dal menù ▾ accanto a «Stampa». Foglio con i soli alimenti, le quantità e le

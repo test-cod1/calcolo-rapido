@@ -350,6 +350,15 @@ const copiaPastoElenco = el("copia-pasto-elenco");
 const copiaPastoErrore = el("copia-pasto-errore");
 const copiaPastoConfermaBtn = el("copia-pasto-conferma-btn");
 const copiaPastoAnnullaBtn = el("copia-pasto-annulla-btn");
+const spostaPastoOverlay = el("sposta-pasto-overlay");
+const spostaPastoTitolo = el("sposta-pasto-titolo");
+const spostaPastoCampoGiornata = el("sposta-pasto-campo-giornata");
+const spostaPastoGiornata = el("sposta-pasto-giornata");
+const spostaPastoPasto = el("sposta-pasto-pasto");
+const spostaPastoEsito = el("sposta-pasto-esito");
+const spostaPastoScambiaBtn = el("sposta-pasto-scambia-btn");
+const spostaPastoSpostaBtn = el("sposta-pasto-sposta-btn");
+const spostaPastoAnnullaBtn = el("sposta-pasto-annulla-btn");
 const svuotaBtn = el("svuota-btn");
 const areaStampa = el("area-stampa");
 const toast = el("toast");
@@ -913,7 +922,11 @@ let fuocoPrimaDelDialogo = null;
 function apriDialogo(overlay) {
   fuocoPrimaDelDialogo = document.activeElement;
   overlay.classList.remove("hidden");
-  const primo = overlay.querySelector("button, [href], input, select, textarea");
+  // Il primo campo VISIBILE: un dialogo che nasconde un campo secondo il caso
+  // (la scelta della giornata quando la giornata è una sola) lascerebbe il fuoco
+  // su un elemento invisibile, cioè da nessuna parte.
+  const primo = Array.from(overlay.querySelectorAll("button, [href], input, select, textarea"))
+    .find(campo => !campo.disabled && campo.offsetParent !== null);
   if (primo) primo.focus();
 }
 
@@ -926,7 +939,7 @@ function chiudiDialogo(overlay) {
 }
 
 function dialogoAperto() {
-  return [copiaPastoOverlay, sostituisciOverlay, installaOverlay]
+  return [copiaPastoOverlay, spostaPastoOverlay, sostituisciOverlay, installaOverlay]
     .find(o => o && !o.classList.contains("hidden")) || null;
 }
 
@@ -1666,6 +1679,7 @@ function pastoHtml(pasto, kcalGiorno) {
         <div class="pasto-azioni no-print">
           <button type="button" data-copia-pasto="${escapeHtml(pasto)}" title="Copia questo pasto come testo" aria-label="Copia ${pasto} come testo">📋</button>
           ${state.giornate.length > 1 ? `<button type="button" data-porta-pasto="${escapeHtml(pasto)}" title="Copia questo pasto in altre giornate" aria-label="Copia ${pasto} in altre giornate">→</button>` : ""}
+          <button type="button" data-sposta-pasto="${escapeHtml(pasto)}" title="Sposta o scambia questo pasto" aria-label="Sposta o scambia ${pasto}">⇅</button>
           <button type="button" data-svuota-pasto="${escapeHtml(pasto)}" title="Svuota questo pasto" aria-label="Svuota ${pasto}">🗑</button>
         </div>
       </div>
@@ -2207,6 +2221,125 @@ function confermaCopiaPasto() {
   salvaStato();
   renderGiornata();
   mostraToast(`${pasto} copiato in ${nomi.length} ${nomi.length === 1 ? "giornata" : "giornate"}`);
+}
+
+// ---------- Spostamento e scambio di un pasto ----------
+// Un pasto composto nella casella sbagliata — la colazione che doveva essere
+// la merenda — non va rifatto: si porta dov'era destinato. La destinazione può
+// stare nella stessa giornata o in un'altra, e con «Scambia» le due posizioni
+// fanno il baratto: il pranzo del giorno 1 e quello del giorno 2 si invertono
+// in un colpo solo.
+//
+// Qui le voci vengono SPOSTATE, non copiate come in apriCopiaPasto: gli stessi
+// oggetti cambiano casella e nessuno resta in due posti, quindi non serve la
+// copia profonda che là evitava di legare fra loro due giornate.
+
+let pastoDaSpostare = null;
+// Finché la destinazione non è stata scelta a mano, segue la giornata: dentro
+// la stessa giornata propone un altro pasto, su un'altra giornata lo stesso
+// pasto (il caso normale, il pranzo del giorno dopo). Dopo una scelta esplicita
+// non la si tocca più, tranne quando resterebbe il pasto di partenza.
+let spostaPastoScelto = false;
+
+function apriSpostaPasto(pasto) {
+  const voci = pastiCorrenti()[pasto];
+  if (!voci || !voci.length) return;
+  pastoDaSpostare = pasto;
+  spostaPastoScelto = false;
+
+  const t = totaliVoci(voci);
+  spostaPastoTitolo.textContent = `Sposta o scambia «${pasto}» (${voci.length} ${voci.length === 1 ? "alimento" : "alimenti"}, ${arrotonda(t.kcal)} kcal) in…`;
+
+  spostaPastoGiornata.innerHTML = state.giornate.map((g, i) =>
+    `<option value="${i}"${i === state.attiva ? " selected" : ""}>${escapeHtml(g.nome)}${i === state.attiva ? " (questa)" : ""}</option>`
+  ).join("");
+  // Con una giornata sola la scelta non esiste: resta il pasto di destinazione.
+  spostaPastoCampoGiornata.classList.toggle("hidden", state.giornate.length < 2);
+
+  spostaPastoPasto.innerHTML = PASTI.map(p => `<option value="${escapeHtml(p)}">${p}</option>`).join("");
+  spostaPastoPasto.value = PASTI.find(p => p !== pasto);
+
+  aggiornaSpostaPasto();
+  apriDialogo(spostaPastoOverlay);
+}
+
+function chiudiSpostaPasto() {
+  pastoDaSpostare = null;
+  spostaPastoScelto = false;
+  chiudiDialogo(spostaPastoOverlay);
+}
+
+function spostaPastoCambiaGiornata() {
+  if (!pastoDaSpostare) return;
+  const stessaGiornata = Number(spostaPastoGiornata.value) === state.attiva;
+  if (!spostaPastoScelto) {
+    spostaPastoPasto.value = stessaGiornata ? PASTI.find(p => p !== pastoDaSpostare) : pastoDaSpostare;
+  } else if (stessaGiornata && spostaPastoPasto.value === pastoDaSpostare) {
+    spostaPastoPasto.value = PASTI.find(p => p !== pastoDaSpostare);
+  }
+  aggiornaSpostaPasto();
+}
+
+// Dice per esteso che cosa succede ai due pasti, perché con la destinazione
+// piena «Sposta» e «Scambia» danno risultati diversi e la differenza non si
+// indovina dal nome del bottone.
+function aggiornaSpostaPasto() {
+  if (!pastoDaSpostare) return;
+  const indice = Number(spostaPastoGiornata.value);
+  const giornata = state.giornate[indice];
+  const destinazione = spostaPastoPasto.value;
+  if (!giornata || !PASTI.includes(destinazione)) return;
+
+  const stessaCasella = indice === state.attiva && destinazione === pastoDaSpostare;
+  const esistenti = giornata.pasti[destinazione] || [];
+  const dove = indice === state.attiva ? destinazione : `${destinazione} di ${giornata.nome}`;
+
+  spostaPastoScambiaBtn.disabled = stessaCasella;
+  spostaPastoSpostaBtn.disabled = stessaCasella;
+
+  if (stessaCasella) {
+    spostaPastoEsito.textContent = "È il pasto di partenza: scegli un'altra destinazione.";
+  } else if (!esistenti.length) {
+    spostaPastoEsito.textContent = `${dove} è vuoto: «Sposta» e «Scambia» qui fanno la stessa cosa.`;
+  } else {
+    spostaPastoEsito.textContent = `${dove} ha già ${esistenti.length} ${esistenti.length === 1 ? "alimento" : "alimenti"} (${arrotonda(totaliVoci(esistenti).kcal)} kcal): «Scambia» li porta qui in ${pastoDaSpostare}, «Sposta» ve li lascia e vi aggiunge i tuoi.`;
+  }
+}
+
+function eseguiSpostaPasto(modo) {
+  if (!pastoDaSpostare) return;
+  const indice = Number(spostaPastoGiornata.value);
+  const giornata = state.giornate[indice];
+  const destinazione = spostaPastoPasto.value;
+  if (!giornata || !PASTI.includes(destinazione)) return;
+  if (indice === state.attiva && destinazione === pastoDaSpostare) return;
+
+  // Con la destinazione nella giornata aperta questi due sono lo stesso
+  // oggetto: gli array vanno letti prima di riscriverli, o il secondo
+  // assegnamento leggerebbe il risultato del primo.
+  const partenza = pastiCorrenti();
+  const voci = partenza[pastoDaSpostare] || [];
+  const arrivo = giornata.pasti[destinazione] || [];
+  if (!voci.length) return;
+
+  const nome = pastoDaSpostare;
+  const dove = indice === state.attiva ? destinazione : `${destinazione} di ${giornata.nome}`;
+  registraAnnulla(conNomeGiornata(modo === "scambia"
+    ? `scambio di ${nome} con ${dove}`
+    : `spostamento di ${nome} in ${dove}`));
+
+  if (modo === "scambia") {
+    giornata.pasti[destinazione] = voci;
+    partenza[nome] = arrivo;
+  } else {
+    giornata.pasti[destinazione] = arrivo.concat(voci);
+    partenza[nome] = [];
+  }
+
+  chiudiSpostaPasto();
+  salvaStato();
+  renderGiornata();
+  mostraToast(modo === "scambia" ? `${nome} scambiato con ${dove}` : `${nome} spostato in ${dove}`);
 }
 
 function rinominaGiornata(indice, nome) {
@@ -3116,6 +3249,11 @@ function collegaEventi() {
       apriCopiaPasto(porta.dataset.portaPasto);
       return;
     }
+    const sposta = e.target.closest("[data-sposta-pasto]");
+    if (sposta) {
+      apriSpostaPasto(sposta.dataset.spostaPasto);
+      return;
+    }
     const svuota = e.target.closest("[data-svuota-pasto]");
     if (svuota) svuotaPasto(svuota.dataset.svuotaPasto);
   });
@@ -3163,6 +3301,22 @@ function collegaEventi() {
   });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape") chiudiCopiaPasto();
+  });
+
+  // Spostamento o scambio di un pasto
+  spostaPastoGiornata.addEventListener("change", spostaPastoCambiaGiornata);
+  spostaPastoPasto.addEventListener("change", () => {
+    spostaPastoScelto = true;
+    aggiornaSpostaPasto();
+  });
+  spostaPastoScambiaBtn.addEventListener("click", () => eseguiSpostaPasto("scambia"));
+  spostaPastoSpostaBtn.addEventListener("click", () => eseguiSpostaPasto("sposta"));
+  spostaPastoAnnullaBtn.addEventListener("click", chiudiSpostaPasto);
+  spostaPastoOverlay.addEventListener("click", (e) => {
+    if (e.target === spostaPastoOverlay) chiudiSpostaPasto();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") chiudiSpostaPasto();
   });
 
   // Il fuoco non deve scappare dal dialogo aperto verso la pagina dietro.

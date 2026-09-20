@@ -71,6 +71,28 @@
     </div>
   </div>
 
+  <!-- Spostamento o scambio di un pasto: nella stessa giornata o fra giornate -->
+  <div id="sposta-pasto-overlay" class="installa-overlay hidden no-print" role="dialog" aria-modal="true" aria-labelledby="sposta-pasto-titolo">
+    <div class="installa-modal">
+      <h3 id="sposta-pasto-titolo">Sposta o scambia il pasto</h3>
+      <p class="hint">Gli alimenti non si reinseriscono: cambiano posto. <strong>Scambia</strong> fa il baratto fra le due posizioni, <strong>Sposta</strong> svuota quella di partenza.</p>
+      <div class="sposta-pasto-campi">
+        <label id="sposta-pasto-campo-giornata">Giornata
+          <select id="sposta-pasto-giornata"></select>
+        </label>
+        <label>Pasto
+          <select id="sposta-pasto-pasto"></select>
+        </label>
+      </div>
+      <p id="sposta-pasto-esito" class="hint sposta-pasto-esito"></p>
+      <div class="riga-bottoni">
+        <button type="button" id="sposta-pasto-scambia-btn">Scambia</button>
+        <button type="button" id="sposta-pasto-sposta-btn">Sposta</button>
+        <button type="button" id="sposta-pasto-annulla-btn" class="danger">Annulla</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Sostituzione di un alimento con uno equivalente della stessa categoria -->
   <div id="sostituisci-overlay" class="installa-overlay hidden no-print" role="dialog" aria-modal="true" aria-labelledby="sostituisci-titolo">
     <div class="installa-modal">
