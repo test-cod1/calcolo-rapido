@@ -2248,7 +2248,13 @@ function apriSpostaPasto(pasto) {
   spostaPastoScelto = false;
 
   const t = totaliVoci(voci);
-  spostaPastoTitolo.textContent = `Sposta o scambia «${pasto}» (${voci.length} ${voci.length === 1 ? "alimento" : "alimenti"}, ${arrotonda(t.kcal)} kcal) in…`;
+  // Da dove parte, non solo che cosa parte: con più schede il dialogo si apre
+  // uguale da qualunque giornata, e chi sposta il pranzo del Giorno 3 deve
+  // leggere nero su bianco che sta svuotando quello, non un altro.
+  const da = state.giornate.length > 1
+    ? `«${pasto}» di ${giornataCorrente().nome}`
+    : `«${pasto}»`;
+  spostaPastoTitolo.textContent = `Sposta o scambia ${da} (${voci.length} ${voci.length === 1 ? "alimento" : "alimenti"}, ${arrotonda(t.kcal)} kcal) in…`;
 
   spostaPastoGiornata.innerHTML = state.giornate.map((g, i) =>
     `<option value="${i}"${i === state.attiva ? " selected" : ""}>${escapeHtml(g.nome)}${i === state.attiva ? " (questa)" : ""}</option>`
