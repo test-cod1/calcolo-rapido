@@ -745,6 +745,29 @@ function misureDisponibili(densita, gCucchiaio) {
   return ["g"];
 }
 
+// Quante cucchiaiate si contano ancora prima che il conto diventi il problema.
+const MAX_CUCCHIAI_PROPOSTI = 4;
+
+// La misura con cui l'app PROPONE una quantità calcolata da lei. Non la decide
+// l'alimento da solo: il database dà un peso al cucchiaio anche allo yogurt, e
+// un cucchiaio di yogurt è una misura vera, undici no — al posto di un
+// bicchiere di latte compariva «11 cucchiai di yogurt», che non è più una
+// misura casalinga ma un numero da leggere due volte. Sopra la soglia si torna
+// ai grammi.
+//
+// Millilitri e bicchieri restano fuori dal conto: 200 ml o un bicchiere e mezzo
+// si leggono a colpo d'occhio per qualunque quantità.
+//
+// Nel riquadro di inserimento questa scelta non si può fare — lì la quantità
+// non è ancora stata scritta, e cambiare unità mentre si digita sarebbe peggio
+// del difetto — e infatti lì c'è il selettore.
+function misuraProposta(grammi, densita, gCucchiaio) {
+  const misura = misureDisponibili(densita, gCucchiaio)[0];
+  if (misura !== "cucchiaio" && misura !== "cucchiaino") return misura;
+  const quanti = misuraDaGrammi(grammi, misura, densita, gCucchiaio);
+  return quanti > MAX_CUCCHIAI_PROPOSTI ? "g" : misura;
+}
+
 // Grammi corrispondenti a una quantità espressa in una misura. Restituisce
 // null quando la conversione non è possibile: meglio niente che un numero
 // inventato.
@@ -2143,7 +2166,7 @@ function candidatiSostituzione(chiaveOriginale, kcalDaPareggiare, per100Original
     // misurerà davvero.
     const densitaCand = densitaDi.get(chiave) || null;
     const cucchiaioCand = cucchiaioDi.get(chiave) || null;
-    const misuraCand = misureDisponibili(densitaCand, cucchiaioCand)[0];
+    const misuraCand = misuraProposta(grammiEsatti, densitaCand, cucchiaioCand);
 
     // Si arrotonda NELL'UNITÀ con cui l'alimento verrà misurato, non in grammi:
     // arrotondare i grammi e convertirli dopo riporterebbe a galla i «1,4
@@ -2286,7 +2309,7 @@ function applicaSostituzione(indiceCandidato) {
   if (cucchiaioNuovo) voce.gCucchiaio = cucchiaioNuovo;
   const misuraNuova = misureDisponibili(densitaNuova, cucchiaioNuovo).includes(scelto.unita)
     ? scelto.unita
-    : misureDisponibili(densitaNuova, cucchiaioNuovo)[0];
+    : misuraProposta(voce.grammi, densitaNuova, cucchiaioNuovo);
   if (misuraNuova !== "g") {
     voce.unita = misuraNuova;
     voce.quantita = misuraNuova === scelto.unita && scelto.valore > 0

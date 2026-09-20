@@ -123,6 +123,19 @@ miele 6,7 g, olio 4,6 g.
 Il bicchiere esiste solo per i liquidi: un bicchiere di farina non è una misura
 che qualcuno usi in cucina.
 
+Un cucchiaio smette di essere una misura casalinga quando se ne contano troppi:
+un cucchiaio di yogurt è una quantità che si sa fare, undici è un numero da
+leggere due volte. Quando è **l'app a proporre** una quantità — oggi solo nelle
+sostituzioni — oltre i **quattro cucchiai** torna ai grammi: lo yogurt passa ai
+grammi sopra i 72 g, il burro sopra i 48, la farina sopra i 36, il parmigiano
+sopra i 20. Millilitri e bicchieri non hanno questo limite, perché 200 ml o un
+bicchiere e mezzo si leggono a colpo d'occhio.
+
+Nel riquadro di inserimento la stessa scelta non si può fare: lì l'unità si
+propone prima che la quantità sia scritta, e cambiarla mentre si digita sarebbe
+peggio del difetto. Lì c'è il selettore, e se scrivi undici cucchiai l'app te li
+lascia: il limite riguarda solo ciò che propone da sé.
+
 **93 alimenti su 464** hanno almeno una misura casalinga: **63 liquidi** (33
 bevande, 9 succhi, aceto, 7 tipi di latte più soia e mandorle, 7 oli, 2 panne,
 2 brodi) e **30 con il cucchiaio** (zuccheri, miele, marmellate, crema di
