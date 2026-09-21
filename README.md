@@ -177,15 +177,20 @@ usabili su una dieta vera.
 stanno in quattro elenchi diversi, quindi al posto del pollo arrivava solo
 altra carne — tacchino, gallina. I gruppi raccolgono le categorie che per una
 sostituzione valgono lo stesso, e al posto del pollo compaiono anche merluzzo,
-uova e legumi. Formaggi e salumi restano un gruppo a sé: a parità di calorie
-portano molti più grassi e sale, e non sono il cambio di un secondo di carne ma
-una scelta diversa. Una categoria fuori dai gruppi (oggi «Miscellanea») resta
-gruppo di se stessa. Ogni riga dice da quale categoria arriva.
+uova, legumi, formaggi e salumi. Questi ultimi a parità di calorie portano
+molti più grassi e sale: è una valutazione che spetta a chi scrive la dieta,
+non a un elenco deciso nel codice, e tenerli fuori vorrebbe dire non poterli
+nemmeno vedere. Ogni riga espone il proprio scarto di grassi, che è
+l'informazione con cui la scelta si fa. Una categoria fuori dai gruppi (oggi
+«Miscellanea») resta gruppo di se stessa. Ogni riga dice anche da quale
+categoria arriva.
 
 Siccome carni e pesci sono le categorie più numerose e le più somiglianti,
 riempirebbero da sole l'elenco e i legumi resterebbero sempre sotto il taglio.
 Perciò **ogni categoria del gruppo porta le sue tre migliori**, e i posti che
-restano vanno alle migliori in assoluto.
+restano vanno alle migliori in assoluto. Con sei categorie nel gruppo proteico
+le quote coprono quasi tutte le quindici righe, e il taglio per vicinanza pesa
+solo sulle ultime.
 
 **Le quantità sono porzioni, non risultati di una divisione.** «138 g di pollo»
 è un numero che nessuno pesa e che promette al paziente una precisione che il

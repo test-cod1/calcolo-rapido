@@ -2289,16 +2289,19 @@ const MAX_GRAMMI_SOSTITUTO = 500;
 // quindi al posto del pollo arrivava solo altra carne — tacchino, gallina —
 // mentre chi scrive una dieta vuole vedere anche il merluzzo e il tofu.
 //
-// Formaggi e salumi restano un gruppo a sé, fuori dalle fonti proteiche: a
-// parità di calorie portano molti più grassi e sale, e non sono il cambio di
-// un secondo di carne ma una scelta diversa.
+// Nel gruppo proteico stanno anche formaggi e salumi. A parità di calorie
+// portano molti più grassi e sale di un petto di pollo, e la tentazione è
+// tenerli fuori; ma è una valutazione che spetta a chi scrive la dieta, non a
+// un elenco deciso qui dentro, e toglierli vuol dire non poterli nemmeno
+// vedere. Restano dentro e ogni riga espone il suo scarto di grassi, che è
+// l'informazione con cui la scelta si fa davvero.
 //
 // Una categoria che non compare qui (oggi «Miscellanea», domani una nuova)
 // resta gruppo di se stessa: si continua a pescare dentro la categoria, come
 // prima, invece di finire in un gruppo che non le appartiene.
 const GRUPPI_ALIMENTARI = [
-  ["Carni di tutti I tipi, frattaglie", "Pesci, crostacei, molluschi", "Uova", "Legumi e prodotti della soia"],
-  ["Formaggi", "Insaccati e salumi"],
+  ["Carni di tutti I tipi, frattaglie", "Pesci, crostacei, molluschi", "Uova",
+   "Legumi e prodotti della soia", "Formaggi", "Insaccati e salumi"],
   ["Cereali, farine, pasta, crakers", "Tuberi, patate, fecola"],
   ["Brioches, merendine, biscotti", "Dolci, ciocc, zucchero, marmellate"]
 ];
@@ -2432,8 +2435,15 @@ function piuVicino(a, b) {
   return (Math.abs(a.dProt) - Math.abs(b.dProt)) || (Math.abs(a.dCarb) - Math.abs(b.dCarb));
 }
 
-// Quante ne porta al massimo una sola categoria.
-const PER_CATEGORIA = 3;
+// Quante ne porta al massimo una sola categoria: le righe disponibili divise
+// per le categorie che hanno qualcosa da proporre. Un numero fisso non regge al
+// variare del gruppo — con tre era giusto per le quattro categorie di allora, e
+// diventato sei il gruppo proteico ne sarebbero servite diciotto per quindici
+// righe, lasciando fuori del tutto le ultime categorie (i formaggi, per come
+// sono ordinati nella tabella).
+function quotaPerCategoria(quanteCategorie) {
+  return Math.max(1, Math.floor(MAX_SOSTITUZIONI / quanteCategorie));
+}
 
 // Le prime quindici per vicinanza sarebbero quasi tutte carne e pesce: sono le
 // categorie più numerose e le più somiglianti, e i legumi — l'alternativa
@@ -2442,15 +2452,16 @@ const PER_CATEGORIA = 3;
 // quindi meno proteine. Allargare il gruppo senza questo passaggio non
 // servirebbe a niente: l'elenco resterebbe quello di prima.
 //
-// Così ogni categoria del gruppo porta le sue tre migliori, i posti che
-// restano vanno alle migliori in assoluto, e lo scarto scritto su ogni riga
-// dice a che prezzo.
+// Così ogni categoria del gruppo porta le sue migliori, i posti che restano
+// vanno alle migliori in assoluto, e lo scarto scritto su ogni riga dice a che
+// prezzo.
 function selezioneVaria(ordinati) {
+  const quota = quotaPerCategoria(new Set(ordinati.map(c => c.categoria)).size);
   const scelti = [];
   const quante = new Map();
   ordinati.forEach(c => {
     const n = quante.get(c.categoria) || 0;
-    if (n >= PER_CATEGORIA || scelti.length >= MAX_SOSTITUZIONI) return;
+    if (n >= quota || scelti.length >= MAX_SOSTITUZIONI) return;
     quante.set(c.categoria, n + 1);
     scelti.push(c);
   });
