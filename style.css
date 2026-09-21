@@ -1497,3 +1497,38 @@ button.danger:hover:not(:disabled) { background: var(--danger-hover); }
 @media (pointer: coarse) {
   .suggestion-matita { padding: 0 12px; min-height: 40px; font-size: 1.1rem; }
 }
+
+/* Il bottone dentro l'avviso: porta al pannello dell'alimento da correggere,
+   che altrimenti sarebbe a due schermate di distanza. */
+.avviso-correggi {
+  width: auto;
+  display: inline;
+  padding: 2px 8px;
+  margin-left: 2px;
+  font-size: 0.8rem;
+  background: var(--surface);
+  border: 1px solid var(--accent-border);
+  color: var(--accent);
+  border-radius: 999px;
+  cursor: pointer;
+}
+.avviso-correggi:hover, .avviso-correggi:focus-visible {
+  background: var(--accent-tint);
+}
+
+@media (pointer: coarse) {
+  .avviso-correggi { padding: 7px 12px; display: inline-block; margin-top: 4px; }
+}
+
+/* Avviso di coerenza nei moduli dell'alimento: non è un errore — un buco fra
+   calorie e macronutrienti può essere legittimo — quindi non ha il rosso di
+   .error, ma la riga gialla degli avvisi sotto il totale. */
+.avviso-coerenza {
+  margin: 10px 0 0;
+  padding: 7px 10px;
+  border-radius: 8px;
+  background: var(--surface-alt-2);
+  border-left: 3px solid var(--fat);
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}

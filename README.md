@@ -220,6 +220,12 @@ si supera il 5%. Un alcolico resta proponibile al posto di un altro alcolico,
 dove il cambio è quello che si sta cercando davvero — il vino al posto della
 birra.
 
+Lo stesso filtro tiene fuori un **alimento tuo i cui valori non tornano**, e va
+bene che sia così: se le calorie dichiarate non sono quelle dei suoi
+macronutrienti, la sua equivalenza calorica è finta e proporlo sarebbe peggio
+che non proporlo. La causa è diversa — non alcol, ma un numero sbagliato — e a
+dirla è l'avviso sotto il totale, non questo filtro.
+
 Restano fuori le quantità sopra i 500 g, che sono equivalenze solo sulla carta.
 La **nota viene rimossa**: descriveva l'alimento di prima, e «pane integrale —
 cotta al dente» finirebbe sul foglio del paziente. Un alimento personalizzato
@@ -288,6 +294,20 @@ Due cose che rendono la faccenda affidabile:
 Salvare dal riquadro di inserimento un alimento con il nome di uno che è già
 tuo passa dalla stessa domanda: è una correzione, non una creazione.
 
+**Mentre si scrive**, in tutti e due i moduli, compare una riga quando le
+calorie e i macronutrienti non tornano: «Dichiari 150 kcal per 100 g, i
+macronutrienti ne spiegano 91,8». Il modulo è il posto dove un numero sbagliato
+si corregge senza conseguenze, prima che l'alimento finisca in una dieta e poi
+in tre giornate. Vale nei due versi: anche i macronutrienti che valgono più
+delle calorie dichiarate sono un numero sbagliato, e lì l'alcol non c'entra.
+
+L'avviso **non blocca il salvataggio**: uno scarto può essere legittimo — alcol,
+polioli, fibra — e non tocca all'app decidere al posto di chi scrive la dieta.
+La soglia è il 10% e comunque 5 kcal, più stretta di quella che riconosce
+l'alcol in fondo alla giornata (30% e 10 kcal): là serve a separare le bevande
+dal resto della tabella e deve essere larga, qui a intercettare un refuso e
+deve essere sensibile.
+
 ### Stampa per il paziente
 
 Dal menù ▾ accanto a «Stampa». Foglio con i soli alimenti, le quantità e le
@@ -326,10 +346,27 @@ mano e non presenti nel foglio di partenza: `densita` (g/ml) sui 63 liquidi e
 Le **calorie dell'alcol** non stanno in nessuna delle quattro colonne, perché
 l'etanolo non è un macronutriente. Con una bevanda alcolica in giornata, la
 barra dei macronutrienti continua a fare 100% ma quel 100% non copre tutte le
-calorie: sotto il totale l'app scrive quante ne arrivano dall'alcol, così il
-conto resta leggibile. Le categorie non servono a riconoscerle — «Bevande
-alcoliche, analcoliche» è una categoria sola — e bastano invece le calorie che
-i macronutrienti non spiegano: vedi «Sostituzioni equivalenti».
+calorie: sotto il totale l'app scrive quante ne arrivano dall'alcol e da quali
+alimenti, così il conto resta leggibile. Le categorie non servono a
+riconoscerle — «Bevande alcoliche, analcoliche» è una categoria sola — e
+bastano invece le calorie che i macronutrienti non spiegano: vedi
+«Sostituzioni equivalenti».
+
+Lo stesso buco, su un **alimento creato da te**, non vuol dire alcol: vuol dire
+che i valori non tornano. La soglia è tarata sui 464 alimenti della tabella, e
+gli alimenti scritti a mano non erano in quella misura — uno yogurt con i
+grassi sbagliati veniva annunciato come alcolico. L'app guarda quindi da dove
+viene la voce (il timbro descritto in «Correggere un alimento creato da te») e
+scrive la cosa giusta, con il nome dell'alimento e un bottone che apre il suo
+pannello di correzione:
+
+> 87 kcal su 1493 non sono spiegate dai macronutrienti di «Yogurt greco al
+> cocco»: ne dichiara 150 per 100 g, i suoi macro ne spiegano 91,8.
+> `Correggi Yogurt greco al cocco`
+
+Il numero da solo diceva che qualcosa non tornava ma non dove, e la correzione
+era a due schermate di distanza. Se l'alimento è stato cancellato dopo
+l'inserimento non c'è niente da aprire, e l'avviso lo dice.
 
 Un valore a **−2 significa «dato non disponibile»**, non zero: è la convenzione
 del foglio di partenza. Sono 41 alimenti (per esempio i carboidrati del

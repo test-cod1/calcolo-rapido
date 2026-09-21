@@ -331,6 +331,7 @@ const nuovoFat = el("nuovo-fat");
 const nuovoCarb = el("nuovo-carb");
 const nuovoAlimentoError = el("nuovo-alimento-error");
 const salvaAlimentoBtn = el("salva-alimento-btn");
+const nuovoAlimentoCoerenza = el("nuovo-alimento-coerenza");
 const annullaAlimentoBtn = el("annulla-alimento-btn");
 
 const alimentoScelto = el("alimento-scelto");
@@ -346,6 +347,7 @@ const modificaAlimentoProt = el("modifica-alimento-prot");
 const modificaAlimentoFat = el("modifica-alimento-fat");
 const modificaAlimentoCarb = el("modifica-alimento-carb");
 const modificaAlimentoErrore = el("modifica-alimento-errore");
+const modificaAlimentoCoerenza = el("modifica-alimento-coerenza");
 const modificaAlimentoAvantiBtn = el("modifica-alimento-avanti-btn");
 const modificaAlimentoAnnullaBtn = el("modifica-alimento-annulla-btn");
 const modificaAlimentoConferma = el("modifica-alimento-conferma");
@@ -1275,12 +1277,47 @@ const SCARTO_ALCOL_KCAL = 10;
 // sapere se le calorie mancanti siano alcol o un dato che nessuno ha misurato:
 // trattarli come gli altri li tiene fuori dalle sostituzioni, che è la cosa
 // giusta in tutti e due i casi.
-function kcalFuoriDaiMacro(per100) {
+function kcalDaiMacro(per100) {
   if (!per100) return 0;
-  const daiMacro = per100.proteine * KCAL_PER_G.proteine
+  return per100.proteine * KCAL_PER_G.proteine
     + per100.grassi * KCAL_PER_G.grassi
     + per100.carboidrati * KCAL_PER_G.carboidrati;
-  return Math.max(0, per100.kcal - daiMacro);
+}
+
+function kcalFuoriDaiMacro(per100) {
+  if (!per100) return 0;
+  return Math.max(0, per100.kcal - kcalDaiMacro(per100));
+}
+
+// Quanto i macronutrienti non spiegano delle calorie scritte in un modulo. La
+// soglia è più stretta di quella dell'avviso in fondo alla giornata
+// (SCARTO_ALCOL_*): là serve a riconoscere l'alcol, e deve essere larga per non
+// prendere altro; qui serve a intercettare un refuso mentre lo si sta
+// scrivendo, che di solito produce uno scarto medio. Sotto questi due valori
+// restano gli arrotondamenti della tabella.
+const SCARTO_MODULO_PERC = 0.10;
+const SCARTO_MODULO_KCAL = 5;
+
+// Il testo da mostrare sotto i campi, stringa vuota quando i conti chiudono.
+// Non blocca il salvataggio: uno scarto può essere legittimo — alcol, polioli,
+// fibra — e non tocca all'app decidere al posto di chi scrive la dieta. Dice
+// il numero e lascia il giudizio.
+function avvisoCoerenza(valori) {
+  const per100 = normalizzaPer100(valori);
+  if (!(per100.kcal > 0)) return "";
+  const daiMacro = kcalDaiMacro(per100);
+  const scarto = per100.kcal - daiMacro;
+  if (Math.abs(scarto) < SCARTO_MODULO_KCAL) return "";
+  if (Math.abs(scarto) / per100.kcal < SCARTO_MODULO_PERC) return "";
+
+  const dichiarate = fmtNumero(round1(per100.kcal));
+  const spiegate = fmtNumero(round1(daiMacro));
+  // I due versi vogliono due frasi: mancano calorie, oppure ne avanzano. Nel
+  // secondo caso l'alcol non c'entra e il numero sbagliato è quasi sempre le
+  // calorie stesse.
+  return scarto > 0
+    ? `Dichiari ${dichiarate} kcal per 100 g, i macronutrienti ne spiegano ${spiegate}. Se è una bevanda alcolica è normale, l'etanolo non è un macronutriente; altrimenti conviene ricontrollare i numeri.`
+    : `I macronutrienti valgono ${spiegate} kcal per 100 g, più delle ${dichiarate} dichiarate: c'è un numero sbagliato.`;
 }
 
 // Vero per gli alimenti la cui energia viene in buona parte dall'alcol.
@@ -1290,15 +1327,65 @@ function eAlcolico(per100) {
   return scarto >= SCARTO_ALCOL_KCAL && scarto / per100.kcal >= SCARTO_ALCOL_PERC;
 }
 
-// Calorie della giornata che arrivano dall'alcol. Si contano solo sugli
-// alimenti riconosciuti come alcolici, non sommando lo scarto di tutti: su un
-// alimento qualunque quello scarto è il gioco degli arrotondamenti della
-// tabella, e sommato su una giornata intera diventerebbe un numero inventato.
-function kcalDaAlcol(voci) {
-  return voci.reduce((somma, voce) => {
-    if (!eAlcolico(voce.per100)) return somma;
-    return somma + kcalFuoriDaiMacro(voce.per100) * (Math.round(voce.grammi) / 100);
-  }, 0);
+// L'alimento personalizzato da cui viene una voce, o null se viene dalla
+// tabella. Il timbro è l'id; per le voci inserite prima che esistesse resta il
+// nome. Un alimento cancellato dopo l'inserimento lascia la voce timbrata ma
+// senza niente da aprire: torna null, e chi chiama se ne accorge.
+function customDellaVoce(voce) {
+  if (voce.idAlimento) return alimentiCustom.find(a => a.id === voce.idAlimento) || null;
+  const chiave = risolviChiave(voce.nome);
+  const id = chiave ? idCustomDi.get(chiave) : null;
+  return id ? alimentiCustom.find(a => a.id === id) || null : null;
+}
+
+function daPersonalizzato(voce) {
+  return Boolean(voce.idAlimento) || customDellaVoce(voce) !== null;
+}
+
+// Le calorie della giornata che i macronutrienti non spiegano, divise per
+// CAUSA. Il fatto è lo stesso nei due casi — una fetta di calorie che la barra
+// delle percentuali non copre — ma il perché no, e dirlo sbagliato è peggio
+// che tacerlo:
+//
+// - su un alimento della tabella è alcol, e la misura lo regge (oltre il 30%
+//   ci sono 21 voci e sono tutte alcoliche);
+// - su un alimento creato qui vuol dire che i valori non tornano. La soglia
+//   non è mai stata tarata su quelli, e infatti uno yogurt scritto con i
+//   grassi sbagliati veniva annunciato come alcolico.
+//
+// Si contano solo le voci che superano la soglia, non lo scarto di tutte: su
+// un alimento qualunque quello scarto è il gioco degli arrotondamenti della
+// tabella, e sommato su una giornata intera sarebbe un numero inventato.
+function kcalNonSpiegate(voci) {
+  const alcol = { kcal: 0, nomi: [] };
+  const incoerenti = new Map();
+
+  voci.forEach(voce => {
+    if (!eAlcolico(voce.per100)) return;
+    const kcal = kcalFuoriDaiMacro(voce.per100) * (Math.round(voce.grammi) / 100);
+
+    if (!daPersonalizzato(voce)) {
+      alcol.kcal += kcal;
+      if (!alcol.nomi.includes(voce.nome)) alcol.nomi.push(voce.nome);
+      return;
+    }
+    // Più voci dello stesso alimento fanno una riga sola: l'avviso parla
+    // dell'alimento da correggere, non di quante volte è stato inserito.
+    const chiave = voce.idAlimento || voce.nome;
+    const riga = incoerenti.get(chiave)
+      || { kcal: 0, nome: voce.nome, per100: voce.per100, alimento: customDellaVoce(voce) };
+    riga.kcal += kcal;
+    incoerenti.set(chiave, riga);
+  });
+
+  return { alcol, incoerenti: Array.from(incoerenti.values()) };
+}
+
+// "il vino", "il vino e la birra", "il vino, la birra e altri 2"
+function elencoNomi(nomi) {
+  if (nomi.length <= 2) return nomi.join(" e ");
+  if (nomi.length === 3) return `${nomi[0]}, ${nomi[1]} e ${nomi[2]}`;
+  return `${nomi.slice(0, 2).join(", ")} e altri ${nomi.length - 2}`;
 }
 
 // Copia dei valori per 100 g da attaccare a una voce della giornata. Le voci
@@ -1729,7 +1816,34 @@ function apriFormNuovoAlimento() {
 function chiudiFormNuovoAlimento() {
   nuovoAlimentoForm.classList.add("hidden");
   nuovoAlimentoError.classList.add("hidden");
+  nuovoAlimentoCoerenza.classList.add("hidden");
   [nuovoNome, nuovoKcal, nuovoProt, nuovoFat, nuovoCarb].forEach(i => { i.value = ""; });
+}
+
+// Mentre si scrive, non al salvataggio: il posto dove un valore sbagliato si
+// corregge senza conseguenze è il modulo, prima che l'alimento finisca in una
+// dieta e poi in tre giornate.
+function aggiornaCoerenza(campi, riga) {
+  const testo = avvisoCoerenza({
+    kcal: parseFloat(campi.kcal.value),
+    proteine: parseFloat(campi.proteine.value),
+    grassi: parseFloat(campi.grassi.value),
+    carboidrati: parseFloat(campi.carboidrati.value)
+  });
+  riga.textContent = testo;
+  riga.classList.toggle("hidden", !testo);
+}
+
+function coerenzaModuloNuovo() {
+  aggiornaCoerenza(
+    { kcal: nuovoKcal, proteine: nuovoProt, grassi: nuovoFat, carboidrati: nuovoCarb },
+    nuovoAlimentoCoerenza);
+}
+
+function coerenzaModuloModifica() {
+  aggiornaCoerenza(
+    { kcal: modificaAlimentoKcal, proteine: modificaAlimentoProt, grassi: modificaAlimentoFat, carboidrati: modificaAlimentoCarb },
+    modificaAlimentoCoerenza);
 }
 
 function salvaNuovoAlimento() {
@@ -1842,6 +1956,7 @@ function apriModificaAlimento(id) {
   modificaAlimentoProt.value = round1(per100.proteine);
   modificaAlimentoFat.value = round1(per100.grassi);
   modificaAlimentoCarb.value = round1(per100.carboidrati);
+  coerenzaModuloModifica();
   nascondiSuggerimenti();
   mostraPassoModifica("form");
   apriDialogo(modificaAlimentoOverlay);
@@ -2275,10 +2390,21 @@ function totaliHtml(t) {
   // macronutrienti, non sul totale: con dell'alcol in giornata i tre numeri
   // fanno comunque 100% mentre una fetta delle calorie non è rappresentata da
   // nessun colore. Dirlo è l'unico modo perché quel 100% resti leggibile.
-  const alcol = kcalDaAlcol(vociDelGiorno);
-  const avvisoAlcol = alcol >= 1
-    ? `<p class="totali-incompleto">${arrotonda(alcol)} kcal su ${arrotonda(t.kcal)} vengono dall'alcol, che non è un macronutriente: le percentuali qui sopra riguardano solo proteine, grassi e carboidrati.</p>`
+  const nonSpiegate = kcalNonSpiegate(vociDelGiorno);
+  let avvisoAlcol = nonSpiegate.alcol.kcal >= 1
+    ? `<p class="totali-incompleto">${arrotonda(nonSpiegate.alcol.kcal)} kcal su ${arrotonda(t.kcal)} vengono dall'alcol (${escapeHtml(elencoNomi(nonSpiegate.alcol.nomi))}), che non è un macronutriente: le percentuali qui sopra riguardano solo proteine, grassi e carboidrati.</p>`
     : "";
+
+  // Qui il numero da solo non basta: senza il nome si sa che qualcosa non
+  // torna ma non dove, e la correzione sta a due schermate di distanza. Il
+  // bottone apre il pannello di quell'alimento.
+  avvisoAlcol += nonSpiegate.incoerenti.filter(x => x.kcal >= 1).map(x => {
+    const spiegate = x.per100.kcal - kcalFuoriDaiMacro(x.per100);
+    const correggi = x.alimento
+      ? ` <button type="button" class="avviso-correggi" data-modifica-alimento="${escapeHtml(x.alimento.id)}">Correggi ${escapeHtml(formattaNome(x.alimento.nome))}</button>`
+      : " L'alimento non è più fra i tuoi: la voce va corretta a mano.";
+    return `<p class="totali-incompleto">${arrotonda(x.kcal)} kcal su ${arrotonda(t.kcal)} non sono spiegate dai macronutrienti di «${escapeHtml(x.nome)}»: ne dichiara ${fmtNumero(round1(x.per100.kcal))} per 100 g, i suoi macro ne spiegano ${fmtNumero(round1(spiegate))}.${correggi}</p>`;
+  }).join("");
 
   const assenti = datiAssenti(vociDelGiorno);
   let avvisoAssenti = "";
@@ -3809,6 +3935,11 @@ function collegaEventi() {
     }
   });
 
+  totaliGiorno.addEventListener("click", (e) => {
+    const correggi = e.target.closest("[data-modifica-alimento]");
+    if (correggi) apriModificaAlimento(correggi.dataset.modificaAlimento);
+  });
+
   suggestions.addEventListener("click", (e) => {
     // La matita sta dentro la riga: va intercettata prima, o il clic
     // selezionerebbe l'alimento invece di aprirne la correzione.
@@ -3828,6 +3959,10 @@ function collegaEventi() {
   // Alimenti personalizzati
   nuovoAlimentoBtn.addEventListener("click", apriFormNuovoAlimento);
   salvaAlimentoBtn.addEventListener("click", salvaNuovoAlimento);
+  [nuovoKcal, nuovoProt, nuovoFat, nuovoCarb].forEach(campo =>
+    campo.addEventListener("input", coerenzaModuloNuovo));
+  [modificaAlimentoKcal, modificaAlimentoProt, modificaAlimentoFat, modificaAlimentoCarb].forEach(campo =>
+    campo.addEventListener("input", coerenzaModuloModifica));
   annullaAlimentoBtn.addEventListener("click", chiudiFormNuovoAlimento);
   alimentoEliminaBtn.addEventListener("click", eliminaAlimentoPersonalizzato);
 
