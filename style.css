@@ -605,6 +605,31 @@ button.danger:hover:not(:disabled) { background: var(--danger-hover); }
   line-height: 1.5;
 }
 
+/* ---------- Avviso: c'è una versione nuova ---------- */
+/* Non è un errore come quello del salvataggio, è un invito: prende i colori
+   dell'accento della dieta, non quelli del pericolo. */
+
+.avviso-aggiornamento {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin: 0 0 16px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--accent-tint);
+  border: 1px solid var(--accent);
+  color: var(--text);
+  font-size: 0.88rem;
+  line-height: 1.5;
+}
+.avviso-aggiornamento button {
+  flex: none;
+  padding: 8px 16px;
+  font-size: 0.88rem;
+}
+
 /* ---------- I tuoi dati ---------- */
 
 .card-dati .riga-bottoni { margin-top: 12px; }

@@ -25,6 +25,16 @@ const FATTORI_ATTIVITA = {
   "Molto intenso": 1.9
 };
 
+// Le due tabelle qui sopra e qui sotto vengono lette con il livello di attività
+// come chiave, e quel livello arriva anche da uno stato salvato. Un valore che
+// non è dei nostri NON restituisce undefined: su un oggetto letterale
+// "constructor" o "toString" rispondono con roba ereditata da Object, il
+// fallback `|| 1.55` non scatta e il fabbisogno finisce a "NaN kcal". Da qui
+// passa tutto quello che poi indicizza le tabelle.
+function attivitaValida(v) {
+  return Object.prototype.hasOwnProperty.call(FATTORI_ATTIVITA, v) ? v : "Moderato";
+}
+
 // Proteine suggerite in grammi per kg di peso corporeo, in base al livello di
 // attività: sono valori di partenza dentro gli intervalli di uso comune
 // (0,8–1 g/kg per l'adulto sedentario secondo i LARN, fino a ~2 g/kg negli
@@ -41,6 +51,15 @@ const G_PER_KG_SUGGERITO = {
 // Grassi come quota delle calorie totali. I LARN indicano 20–35% per l'adulto:
 // 27% sta in mezzo e lascia ai carboidrati una quota di norma sostenibile.
 // Anche questo è solo un punto di partenza modificabile.
+// Intervalli ammessi per i dati della persona, gli stessi dichiarati nei campi
+// di index.html. Gli attributi min/max del markup non impediscono di battere un
+// numero fuori scala — segnalano e basta — quindi il calcolo se li ricontrolla.
+const LIMITI_PROFILO = {
+  eta:     { nome: "età",     min: 1,  max: 120, unita: "anni" },
+  peso:    { nome: "peso",    min: 1,  max: 400, unita: "kg" },
+  altezza: { nome: "altezza", min: 50, max: 250, unita: "cm" }
+};
+
 const PERC_GRASSI_SUGGERITA = 27;
 const PERC_GRASSI_MIN = 15;
 const PERC_GRASSI_MAX = 45;
@@ -71,6 +90,12 @@ const TOLLERANZA_PASTO = 0.15;
 // I nomi di dieta e giornata sono già limitati a 40 dai rispettivi campi.
 const MAX_NOME_ALIMENTO = 60;
 const MAX_NOTA = 80;
+
+// Tetto di una singola voce. Cinque chili di un alimento solo non sono una
+// porzione ma una cifra battuta male (o un decimale finito nel posto
+// sbagliato): senza un limite il numero entra in dieta, schiaccia tutte le
+// barre della giornata e finisce sul foglio stampato.
+const MAX_GRAMMI_VOCE = 5000;
 
 // Nel foglio di partenza -2 vuol dire "dato non disponibile", non zero. Sono 41
 // alimenti (per esempio i carboidrati del parmigiano). Trattarlo come zero fa
@@ -117,6 +142,13 @@ function creaGiornata(nome) {
   return { nome, pasti: creaPastiVuoti() };
 }
 
+// I dati della persona per il calcolo del fabbisogno. Età, peso, altezza e gli
+// altri numeri restano stringhe: sono quello che è stato battuto nei campi, e
+// lì tornano quando si riapre la dieta.
+function creaProfiloVuoto() {
+  return { sesso: "", eta: "", peso: "", altezza: "", attivita: "Moderato", correzione: "", gPerKg: "", percGrassi: "" };
+}
+
 // Nome libero per la giornata nuova: "Giorno N" con il primo numero non ancora
 // in uso, così chiudendo la 2ª e riaprendone una non escono due "Giorno 3".
 function nomeGiornataLibero() {
@@ -145,7 +177,7 @@ function creaDietaVuota(nome, colore) {
     ripartizione: null,
     giornate: [creaGiornata("Giorno 1")],
     attiva: 0,
-    profilo: { sesso: "", eta: "", peso: "", altezza: "", attivita: "Moderato", correzione: "", gPerKg: "", percGrassi: "" }
+    profilo: creaProfiloVuoto()
   };
 }
 
@@ -366,6 +398,8 @@ const toast = el("toast");
 const installaBtn = el("installa-btn");
 const installaOverlay = el("installa-overlay");
 const avvisoSalvataggio = el("avviso-salvataggio");
+const avvisoAggiornamento = el("avviso-aggiornamento");
+const aggiornaBtn = el("aggiorna-btn");
 const esportaBtn = el("esporta-btn");
 const importaBtn = el("importa-btn");
 const importaFile = el("importa-file");
@@ -405,9 +439,24 @@ function sentenceCase(str) {
 
 // I nomi del database CREA sono in MAIUSCOLO con la coda invertita
 // ("AGLIO, fresco"): qui diventano leggibili ("Aglio (fresco)").
+// La virgola che separa la coda sta sempre fuori dalle parentesi. Quelle
+// dentro sono un'altra cosa — in «VINO ROSSO (13,5 %vol)» è un separatore
+// decimale — e tagliare lì dava «Vino rosso (13 (5 %vol))», che si leggeva
+// nella ricerca, sulla riga, nel testo copiato e sul foglio del paziente.
+function primaVirgolaDiCoda(nome) {
+  let dentro = 0;
+  for (let i = 0; i < nome.length; i++) {
+    const c = nome[i];
+    if (c === "(") dentro++;
+    else if (c === ")") dentro = Math.max(0, dentro - 1);
+    else if (c === "," && dentro === 0) return i;
+  }
+  return -1;
+}
+
 function formattaNome(nome) {
   if (!nome) return nome;
-  const i = nome.indexOf(",");
+  const i = primaVirgolaDiCoda(nome);
   const main = i >= 0 ? nome.slice(0, i) : nome;
   // La virgola iniziale va tolta: nel database CREA qualche voce ne ha due di
   // fila ("POLLO,, INTERO") e senza questo si leggerebbe "Pollo (, intero)".
@@ -510,9 +559,7 @@ function leggiDieta(salvata, nomePredefinito, colorePredefinito) {
   dieta.obiettivoGrassi = Number(salvata.obiettivoGrassi) > 0 ? Number(salvata.obiettivoGrassi) : null;
   dieta.obiettivoCarboidrati = Number(salvata.obiettivoCarboidrati) > 0 ? Number(salvata.obiettivoCarboidrati) : null;
   dieta.ripartizione = leggiRipartizione(salvata.ripartizione);
-  if (salvata.profilo && typeof salvata.profilo === "object") {
-    Object.assign(dieta.profilo, salvata.profilo);
-  }
+  dieta.profilo = leggiProfilo(salvata.profilo);
 
   if (Array.isArray(salvata.giornate) && salvata.giornate.length) {
     dieta.giornate = salvata.giornate.slice(0, MAX_GIORNATE).map((g, i) => ({
@@ -527,6 +574,37 @@ function leggiDieta(salvata, nomePredefinito, colorePredefinito) {
     dieta.attiva = 0;
   }
   return dieta;
+}
+
+// Rilegge il profilo campo per campo, come tutto il resto dello stato salvato.
+// Prima qui c'era un Object.assign, ed era l'unico punto in cui una struttura
+// salvata entrava senza controlli: copiava qualunque chiave con qualunque tipo,
+// "__proto__" compreso — che JSON.parse produce come proprietà propria e che
+// l'assegnamento fa finire sul prototipo dell'oggetto invece che dentro.
+function leggiProfilo(salvato) {
+  const profilo = creaProfiloVuoto();
+  if (!salvato || typeof salvato !== "object") return profilo;
+  profilo.sesso = salvato.sesso === "M" || salvato.sesso === "F" ? salvato.sesso : "";
+  profilo.attivita = attivitaValida(salvato.attivita);
+  profilo.eta = numeroDaCampo(salvato.eta);
+  profilo.peso = numeroDaCampo(salvato.peso);
+  profilo.altezza = numeroDaCampo(salvato.altezza);
+  profilo.correzione = numeroDaCampo(salvato.correzione);
+  profilo.gPerKg = numeroDaCampo(salvato.gPerKg);
+  profilo.percGrassi = numeroDaCampo(salvato.percGrassi);
+  return profilo;
+}
+
+// I campi del profilo conservano quello che è stato battuto, perché è quello
+// che va rimesso nei campi: restano stringhe, ma solo se rileggono un numero.
+// I limiti veri (età, peso, altezza, quota di grassi) restano dove sono sempre
+// stati, cioè nel markup e nel calcolo del fabbisogno.
+function numeroDaCampo(v) {
+  if (typeof v === "number") return isFinite(v) ? String(v) : "";
+  if (typeof v !== "string") return "";
+  const pulito = v.trim().slice(0, 12);
+  if (!pulito || isNaN(parseFloat(pulito.replace(",", ".")))) return "";
+  return pulito;
 }
 
 // Rilegge i pasti voce per voce: una struttura salvata da una versione diversa
@@ -550,10 +628,23 @@ function salvaAlimentiCustom() {
   try { localStorage.setItem(CHIAVE_ALIMENTI, JSON.stringify(alimentiCustom)); } catch (e) { /* ignora */ }
 }
 
+// Gli alimenti salvati passano dalla stessa normalizzazione del caricamento da
+// file: prima qui bastava che `nome` ci fosse, e un nome che non è una stringa
+// (dato corrotto, o scritto da un'altra pagina dello stesso dominio) faceva
+// esplodere formattaNome dentro ricostruisciElenco — che gira in una async, per
+// cui l'errore restava zitto e la ricerca alimenti si presentava vuota.
+function leggiAlimentiCustom(dati) {
+  if (!Array.isArray(dati)) return [];
+  return dati
+    // Un nome che non è un testo non è recuperabile: convertirlo darebbe
+    // "[object Object]" in mezzo agli alimenti, che è peggio del silenzio.
+    .filter(a => a && (typeof a.nome === "string" || typeof a.nome === "number") && String(a.nome).trim() !== "")
+    .map(a => ({ nome: String(a.nome).trim().slice(0, MAX_NOME_ALIMENTO), ...normalizzaPer100(a) }));
+}
+
 function caricaAlimentiCustom() {
   try {
-    const dati = JSON.parse(localStorage.getItem(CHIAVE_ALIMENTI) || "[]");
-    alimentiCustom = Array.isArray(dati) ? dati.filter(a => a && a.nome) : [];
+    alimentiCustom = leggiAlimentiCustom(JSON.parse(localStorage.getItem(CHIAVE_ALIMENTI) || "[]"));
   } catch (e) {
     alimentiCustom = [];
   }
@@ -897,10 +988,19 @@ async function importaDati(file) {
     mostraToast("Il file non contiene nessuna dieta");
     return;
   }
+  // Anche gli alimenti creati vengono sostituiti, quindi la domanda li conta:
+  // il caso da dire ad alta voce è il file che non ne porta nessuno, dove la
+  // sostituzione è una cancellazione e basta.
+  const alimentiInArrivo = leggiAlimentiCustom(dati.alimentiCustom);
+  const quantiMiei = alimentiCustom.length;
+  const avvisoAlimenti = quantiMiei
+    ? `\n\n${quantiMiei === 1 ? "Anche l'alimento che hai creato viene sostituito" : `Anche i ${quantiMiei} alimenti che hai creato vengono sostituiti`}: il file ne porta ${alimentiInArrivo.length || "nessuno"}.`
+    : "";
+
   // Sostituzione, non fusione: unire due archivi darebbe diete duplicate senza
   // che si capisca quali. Chi vuole tenere anche il lavoro di adesso lo salva
   // prima su file.
-  if (!confirm(`Caricare ${quante} ${quante === 1 ? "dieta" : "diete"} dal file?\n\nQuesto SOSTITUISCE tutto il lavoro presente in questo browser. Se ti serve, salvalo prima su file.`)) return;
+  if (!confirm(`Caricare ${quante} ${quante === 1 ? "dieta" : "diete"} dal file?\n\nQuesto SOSTITUISCE tutto il lavoro presente in questo browser. Se ti serve, salvalo prima su file.${avvisoAlimenti}`)) return;
 
   // Le stesse funzioni che rileggono il localStorage: un file manomesso o
   // scritto da un'altra versione non deve poter rompere il rendering.
@@ -911,13 +1011,15 @@ async function importaDati(file) {
   nuovo.dietaAttiva = attiva >= 0 && attiva < nuovo.diete.length ? attiva : 0;
   archivio = nuovo;
 
-  if (Array.isArray(dati.alimentiCustom)) {
-    alimentiCustom = dati.alimentiCustom
-      .filter(a => a && a.nome)
-      .map(a => ({ nome: String(a.nome).slice(0, MAX_NOME_ALIMENTO), ...normalizzaPer100(a) }));
-    salvaAlimentiCustom();
-    ricostruisciElenco();
-  }
+  // Anche gli alimenti vengono SOSTITUITI, e per questo fuori da ogni "se": un
+  // file senza alimenti (scritto a mano, o da una versione che li chiamerà in
+  // un altro modo) lasciava in piedi quelli di prima, e il browser restava con
+  // le diete del file e gli alimenti di chi c'era prima — cioè l'archivio
+  // ibrido che la sostituzione serve a evitare. leggiAlimentiCustom risponde
+  // con un elenco vuoto a qualunque cosa non sia un elenco.
+  alimentiCustom = alimentiInArrivo;
+  salvaAlimentiCustom();
+  ricostruisciElenco();
 
   apriDietaCorrente(`Caricate ${quante} ${quante === 1 ? "dieta" : "diete"} dal file`);
 }
@@ -1097,6 +1199,68 @@ function normalizzaPer100(a) {
   return per100;
 }
 
+// ---------- Calorie che non vengono dai macronutrienti ----------
+// L'etanolo dà 7 kcal per grammo e non è uno dei tre macronutrienti, quindi su
+// un bicchiere di vino le calorie dichiarate e la somma di proteine, grassi e
+// carboidrati non tornano: il whisky ha 238 kcal e macro a zero. Senza dirlo,
+// la barra dei macro dichiara un 100% che non copre tutte le calorie del
+// giorno, e le sostituzioni propongono mezzo bicchiere di gin al posto di un
+// succo di frutta — stesse calorie, stessi (zero) macro, scarto perfetto.
+//
+// In tabella non c'è una colonna per l'alcol, ma non serve: lo scarto lo
+// riconosce da sé. Misurato su tutti i 464 alimenti, la separazione è netta:
+// oltre il 30% di calorie non spiegate ci sono 21 voci e sono TUTTE alcoliche
+// (20 bevande più l'estratto di vaniglia, che è alcolico anche lui), la più
+// bassa al 45%; sotto, il resto della tabella non supera il 5%. Le due soglie
+// sono quindi larghe entrambe, e quella assoluta tiene fuori il rumore di
+// arrotondamento sui valori minimi — la birra analcolica, 9 kcal, ha uno
+// scarto del 24% che sono 2 kcal in tutto.
+const SCARTO_ALCOL_PERC = 0.30;
+const SCARTO_ALCOL_KCAL = 10;
+
+// Calorie per 100 g che i tre macronutrienti non spiegano. Un valore "non
+// disponibile" vale zero, come già lo vale nei conti: lo scarto diventa così un
+// limite massimo, e va bene che lo sia. Fra i superalcolici sono proprio quelli
+// con le proteine a -2 (brandy, cognac, grappa) i casi in cui non si può
+// sapere se le calorie mancanti siano alcol o un dato che nessuno ha misurato:
+// trattarli come gli altri li tiene fuori dalle sostituzioni, che è la cosa
+// giusta in tutti e due i casi.
+function kcalFuoriDaiMacro(per100) {
+  if (!per100) return 0;
+  const daiMacro = per100.proteine * KCAL_PER_G.proteine
+    + per100.grassi * KCAL_PER_G.grassi
+    + per100.carboidrati * KCAL_PER_G.carboidrati;
+  return Math.max(0, per100.kcal - daiMacro);
+}
+
+// Vero per gli alimenti la cui energia viene in buona parte dall'alcol.
+function eAlcolico(per100) {
+  if (!per100 || !(per100.kcal > 0)) return false;
+  const scarto = kcalFuoriDaiMacro(per100);
+  return scarto >= SCARTO_ALCOL_KCAL && scarto / per100.kcal >= SCARTO_ALCOL_PERC;
+}
+
+// Calorie della giornata che arrivano dall'alcol. Si contano solo sugli
+// alimenti riconosciuti come alcolici, non sommando lo scarto di tutti: su un
+// alimento qualunque quello scarto è il gioco degli arrotondamenti della
+// tabella, e sommato su una giornata intera diventerebbe un numero inventato.
+function kcalDaAlcol(voci) {
+  return voci.reduce((somma, voce) => {
+    if (!eAlcolico(voce.per100)) return somma;
+    return somma + kcalFuoriDaiMacro(voce.per100) * (Math.round(voce.grammi) / 100);
+  }, 0);
+}
+
+// Copia dei valori per 100 g da attaccare a una voce della giornata. Le voci
+// non devono condividere l'oggetto della tabella: sono la fotografia dei valori
+// al momento dell'inserimento, e restano quelli. `assenti` è un array e va
+// copiato a sua volta, o la condivisione si sposterebbe lì dentro.
+function copiaPer100(per100) {
+  const copia = { ...per100 };
+  if (Array.isArray(per100 && per100.assenti)) copia.assenti = per100.assenti.slice();
+  return copia;
+}
+
 // Quali dati mancano in una giornata, e in quanti alimenti: serve a dichiarare
 // che il totale è per difetto invece di presentarlo come esatto.
 function datiAssenti(voci) {
@@ -1142,6 +1306,26 @@ function ricostruisciElenco() {
   }));
 }
 
+// I gruppi alimentari sono scritti in GRUPPI_ALIMENTARI come nomi di categoria
+// copiati da foods.json, refusi compresi: «Carni di tutti I tipi» con la I
+// maiuscola, «crakers», «Dolci, ciocc». Il giorno in cui si riesporta la
+// tabella e qualcuno corregge un refuso, la categoria non viene più trovata, il
+// gruppo si sfalda e le sostituzioni tornano a pescare dentro la sola categoria
+// — senza un errore, senza una differenza visibile, solo un elenco di proposte
+// più povero che nessuno collega alla causa. Qui non si può correggere niente
+// in automatico (il nome giusto è quello nuovo, non il nostro), ma si può
+// smettere di farlo in silenzio.
+function verificaGruppiAlimentari(alimenti) {
+  const presenti = new Set(alimenti.map(a => a && a.categoria).filter(Boolean));
+  const orfane = GRUPPI_ALIMENTARI.flat().filter(c => !presenti.has(c));
+  if (!orfane.length) return;
+  console.warn(
+    "Calcolo rapido: queste categorie di GRUPPI_ALIMENTARI non esistono in foods.json e non raggruppano più niente:\n  " +
+    orfane.join("\n  ") +
+    "\nVanno riallineate ai nomi della tabella, altrimenti le sostituzioni pescano solo dentro la categoria di partenza."
+  );
+}
+
 async function caricaAlimenti() {
   try {
     const risposta = await fetch("foods.json");
@@ -1152,6 +1336,7 @@ async function caricaAlimenti() {
     const dati = await risposta.json();
     if (!Array.isArray(dati)) throw new Error("foods.json non contiene un elenco di alimenti");
     alimentiBase = dati;
+    verificaGruppiAlimentari(dati);
   } catch (e) {
     alimentiBase = [];
     erroreCaricamentoAlimenti = true;
@@ -1426,7 +1611,24 @@ function aggiornaAnteprima() {
     return;
   }
 
-  calcoloCorrente = { nome: alimentoSelezionato.nome, grammi: v.grammi, per100: alimentoSelezionato.per100 };
+  // E il tetto dall'altra parte: senza, un decimale finito nel posto sbagliato
+  // entra in dieta e schiaccia le barre di tutta la giornata.
+  if (v.grammi > MAX_GRAMMI_VOCE) {
+    preview.classList.add("hidden");
+    aggiungiBtn.disabled = true;
+    calcoloCorrente = null;
+    modoNota.textContent = modoCalcolo === "grammi"
+      ? `Quantità troppo grande: il massimo per una voce è ${MAX_GRAMMI_VOCE} g.`
+      : `Quantità troppo grande: corrisponde a ${v.grammi.toLocaleString("it-IT")} g di alimento, oltre il massimo di ${MAX_GRAMMI_VOCE} g.`;
+    return;
+  }
+
+  // per100 viene COPIATO, non passato per riferimento: la voce inserita nella
+  // giornata deve restare quella di oggi anche se domani l'alimento di partenza
+  // cambia valori. È la stessa promessa che l'app fa già a parole quando si
+  // elimina un alimento personalizzato («le voci già inserite restano
+  // invariate»), e che con l'oggetto condiviso non avrebbe potuto mantenere.
+  calcoloCorrente = { nome: alimentoSelezionato.nome, grammi: v.grammi, per100: copiaPer100(alimentoSelezionato.per100) };
   // L'unità con cui è stata scritta la quantità resta attaccata alla voce: la
   // riga, la stampa e il testo copiato la ripetono come l'ha scritta chi compone
   // la dieta, invece di ritradurla in grammi.
@@ -1771,7 +1973,18 @@ function totaliHtml(t) {
 
   // Se qualche alimento della giornata non ha un dato, il totale è per difetto
   // e va detto: presentarlo come esatto porterebbe a decisioni sbagliate.
-  const assenti = datiAssenti(PASTI.flatMap(p => pastiCorrenti()[p]));
+  const vociDelGiorno = PASTI.flatMap(p => pastiCorrenti()[p]);
+
+  // Le percentuali della barra qui sotto sono calcolate sulle calorie dei tre
+  // macronutrienti, non sul totale: con dell'alcol in giornata i tre numeri
+  // fanno comunque 100% mentre una fetta delle calorie non è rappresentata da
+  // nessun colore. Dirlo è l'unico modo perché quel 100% resti leggibile.
+  const alcol = kcalDaAlcol(vociDelGiorno);
+  const avvisoAlcol = alcol >= 1
+    ? `<p class="totali-incompleto">${arrotonda(alcol)} kcal su ${arrotonda(t.kcal)} vengono dall'alcol, che non è un macronutriente: le percentuali qui sopra riguardano solo proteine, grassi e carboidrati.</p>`
+    : "";
+
+  const assenti = datiAssenti(vociDelGiorno);
   let avvisoAssenti = "";
   if (assenti.size) {
     const parti = Array.from(assenti.entries()).map(([k, nomi]) => {
@@ -1799,6 +2012,7 @@ function totaliHtml(t) {
         <span><i class="punto p-fat"></i>Grassi <b>${round1(t.grassi)} g</b> (${macro.fat}%)</span>
         <span><i class="punto p-carb"></i>Carboidrati <b>${round1(t.carboidrati)} g</b> (${macro.carb}%)</span>
       </div>
+      ${avvisoAlcol}
       ${avvisoAssenti}
     </div>
   `;
@@ -1978,12 +2192,16 @@ function scriviQuantitaVoce(voce, valore) {
   const grammi = unita && unita !== "g"
     ? grammiDaMisura(valore, unita, voce.densita, voce.gCucchiaio)
     : null;
-  if (grammi !== null) {
-    voce.quantita = round1(valore);
-    voce.grammi = Math.max(1, Math.round(grammi));
-  } else {
-    voce.grammi = Math.max(0, Math.round(valore));
-  }
+  // Il pavimento a 1 g vale per tutte le unità, non solo per le misure
+  // casalinghe: scrivendo "0,4" in un campo grammi l'arrotondamento dava zero e
+  // restava in dieta una riga "0 g / 0 kcal", che è quanto il riquadro di
+  // inserimento impedisce da sempre con il suo controllo sull'anteprima.
+  const pesati = Math.max(1, Math.round(grammi !== null ? grammi : valore));
+  // Oltre il tetto non si scrive niente e la riga resta com'era: chi lo chiama
+  // controlla il valore di ritorno.
+  if (pesati > MAX_GRAMMI_VOCE) return false;
+  if (grammi !== null) voce.quantita = round1(valore);
+  voce.grammi = pesati;
   return true;
 }
 
@@ -2148,12 +2366,19 @@ function quantitaUsabile(valore, unita) {
 
 let sostituzioneInCorso = null;
 
-function candidatiSostituzione(chiaveOriginale, kcalDaPareggiare, per100Originale) {
+function candidatiSostituzione(chiaveOriginale, kcalDaPareggiare, per100Originale, per100Voce) {
   const categoria = categoriaDi.get(chiaveOriginale) || null;
   const candidati = [];
+  // «Bevande alcoliche, analcoliche» è una categoria sola, quindi senza questo
+  // al posto di un succo di frutta arrivava del whisky: stesse calorie, stessi
+  // (zero) macronutrienti, scarto perfetto su ogni riga del confronto. Un
+  // alcolico si propone solo al posto di un altro alcolico, dove il cambio è
+  // quello che si sta davvero cercando — il vino al posto della birra.
+  const partiamoDaUnAlcolico = eAlcolico(per100Voce);
 
   foodMap.forEach((per100, chiave) => {
     if (chiave === chiaveOriginale) return;
+    if (!partiamoDaUnAlcolico && eAlcolico(per100)) return;
     // Senza categoria (alimenti personalizzati, o voce non riconosciuta) si
     // cerca fra tutti: meglio qualche proposta in più che nessuna.
     if (categoria && !stessoGruppo(categoria, categoriaDi.get(chiave))) return;
@@ -2249,7 +2474,7 @@ function apriSostituzione(pasto, indice) {
   // La chiave del database si ricava dal nome mostrato: le voci salvate
   // portano il nome già formattato, non la chiave originale.
   const chiave = risolviChiave(voce.nome);
-  const candidati = candidatiSostituzione(chiave, v.kcal, v);
+  const candidati = candidatiSostituzione(chiave, v.kcal, v, voce.per100);
 
   sostituzioneInCorso = { pasto, indice };
   sostituisciTitolo.textContent = `Al posto di ${voce.nome} (${testoQuantitaVoce(voce)}, ${v.kcal} kcal)`;
@@ -2297,7 +2522,7 @@ function applicaSostituzione(indiceCandidato) {
   registraAnnulla(conNomeGiornata(`sostituzione di ${voce.nome} con ${nuovoNome}`));
   voce.nome = nuovoNome;
   voce.grammi = scelto.grammi;
-  voce.per100 = foodMap.get(scelto.chiave);
+  voce.per100 = copiaPer100(foodMap.get(scelto.chiave));
   // L'unità segue il nuovo alimento: sostituendo un olio con del pane i
   // millilitri non vogliono più dire nulla, e viceversa un liquido va espresso
   // in millilitri anche se prima c'era un solido pesato.
@@ -2826,8 +3051,12 @@ function costruisciAreaStampa() {
     : `Giornata alimentare${conNome ? " — " + escapeHtml(giornataCorrente().nome) : ""}`;
 
   if (stampaPerPaziente) {
+    // Come per il foglio di lavoro qui sotto: il nome della giornata va nei
+    // blocchi solo quando se ne stampa più di una. Stampandone una sola il
+    // titolo lo porta già ("Giornata alimentare — Giorno 2"), e ripeterlo nel
+    // blocco lo scriveva due volte di fila sul foglio che va al paziente.
     areaStampa.innerHTML = intestazionePaziente(titolo) +
-      giornate.map(g => bloccoPazienteGiornata(g, conNome)).join("");
+      giornate.map(g => bloccoPazienteGiornata(g, tutte)).join("");
     return true;
   }
 
@@ -2867,7 +3096,7 @@ function leggiProfiloDaiCampi() {
 function gPerKgEffettivo(p) {
   const digitato = parseFloat(String(p.gPerKg).replace(",", "."));
   if (digitato > 0) return digitato;
-  return G_PER_KG_SUGGERITO[p.attivita] || 1.4;
+  return G_PER_KG_SUGGERITO[attivitaValida(p.attivita)];
 }
 
 // Quota di calorie dai grassi usata nel calcolo: quella digitata (tenuta dentro
@@ -2884,16 +3113,27 @@ function calcolaFabbisogno(p) {
   const peso = Number(p.peso);
   const altezza = Number(p.altezza);
   const mancanti = [];
+  const fuoriScala = [];
   if (!p.sesso) mancanti.push("sesso");
-  if (!eta) mancanti.push("età");
-  if (!peso) mancanti.push("peso");
-  if (!altezza) mancanti.push("altezza");
-  if (mancanti.length) return { mancanti };
+  // Un campo vuoto e un campo sbagliato sono due cose diverse e vanno dette in
+  // due modi diversi. Prima bastava `!eta`: uno zero veniva preso per un campo
+  // da riempire, ma -50 era truthy e passava, e il foglio mostrava un
+  // metabolismo basale negativo prima che qualcosa lo fermasse più a valle.
+  Object.keys(LIMITI_PROFILO).forEach(campo => {
+    const limite = LIMITI_PROFILO[campo];
+    const valore = Number(p[campo]);
+    if (String(p[campo] == null ? "" : p[campo]).trim() === "" || !isFinite(valore)) {
+      mancanti.push(limite.nome);
+    } else if (valore < limite.min || valore > limite.max) {
+      fuoriScala.push(`${limite.nome} fra ${limite.min} e ${limite.max} ${limite.unita}`);
+    }
+  });
+  if (mancanti.length || fuoriScala.length) return { mancanti, fuoriScala };
 
   // Mifflin-St Jeor: BMR = 10·peso + 6,25·altezza − 5·età + c
   const costante = p.sesso === "M" ? 5 : -161;
   const bmr = Math.round(10 * peso + 6.25 * altezza - 5 * eta + costante);
-  const fattore = FATTORI_ATTIVITA[p.attivita] || 1.55;
+  const fattore = FATTORI_ATTIVITA[attivitaValida(p.attivita)];
   const tdee = Math.round(bmr * fattore);
   const correzione = Math.round(Number(p.correzione) || 0);
   const obiettivo = Math.max(0, tdee + correzione);
@@ -2934,7 +3174,7 @@ function calcolaFabbisogno(p) {
 // Nota sotto il campo g/kg: chiarisce quale valore si sta usando quando il
 // campo è lasciato vuoto, e ricorda gli intervalli di riferimento.
 function renderNotaGkg() {
-  const suggerito = G_PER_KG_SUGGERITO[state.profilo.attivita] || 1.4;
+  const suggerito = G_PER_KG_SUGGERITO[attivitaValida(state.profilo.attivita)];
   gkgInput.placeholder = String(suggerito).replace(".", ",");
   const digitato = parseFloat(String(state.profilo.gPerKg).replace(",", "."));
   const testoBase = "Riferimenti: 0,8–1 g/kg adulto sedentario · 1,2–1,6 attivo · 1,6–2,2 sportivo.";
@@ -2964,7 +3204,17 @@ function renderFabbisogno() {
   renderNotaPercGrassi();
   const r = calcolaFabbisogno(state.profilo);
   if (r.mancanti) {
-    fabbisognoEsito.innerHTML = `<span class="passaggio">Per la stima servono ancora: ${r.mancanti.join(", ")}.</span>`;
+    // Il campo vuoto è una riga di servizio, il valore fuori scala un errore da
+    // correggere: il secondo prende lo stile dell'avviso, come la ripartizione
+    // impossibile più in basso.
+    const righe = [];
+    if (r.mancanti.length) {
+      righe.push(`<div class="passaggio">Per la stima servono ancora: ${r.mancanti.join(", ")}.</div>`);
+    }
+    if (r.fuoriScala.length) {
+      righe.push(`<div class="fabbisogno-avviso">Valori fuori scala: serve ${r.fuoriScala.join(" · ")}.</div>`);
+    }
+    fabbisognoEsito.innerHTML = righe.join("");
     return;
   }
   const fattoreTxt = String(r.fattore).replace(".", ",");
@@ -3088,10 +3338,45 @@ function inizializzaInstallazione() {
 // script e la tabella degli alimenti: dopo la prima apertura l'applicazione
 // funziona anche senza rete.
 
+// L'avviso di versione nuova è quello che sw.js dà per scontato nel commento in
+// testa, e che finora non esisteva: la strategia è network-first, ma vale al
+// momento del caricamento. Una scheda rimasta aperta — ed è il caso normale,
+// una dieta si scrive in mezza giornata — continua a eseguire il codice di
+// prima finché qualcuno non ricarica, senza un modo per saperlo.
+//
+// Non si ricarica da soli: sotto le mani di chi sta scrivendo una dieta, una
+// pagina che si ricarica per conto suo è un piccolo disastro. Si offre e basta.
+function mostraAvvisoAggiornamento() {
+  if (!avvisoAggiornamento) return;
+  avvisoAggiornamento.classList.remove("hidden");
+}
+
 function registraServiceWorker() {
   if (!("serviceWorker" in navigator)) return;
+
+  if (aggiornaBtn) {
+    aggiornaBtn.addEventListener("click", () => window.location.reload());
+  }
+
   window.addEventListener("load", () => {
-    navigator.serviceWorker.register("sw.js").catch(errore => {
+    navigator.serviceWorker.register("sw.js").then(registrazione => {
+      // Un worker già in attesa: la versione nuova è arrivata in un caricamento
+      // precedente e sta lì da allora.
+      if (registrazione.waiting && navigator.serviceWorker.controller) {
+        mostraAvvisoAggiornamento();
+      }
+      registrazione.addEventListener("updatefound", () => {
+        const nuovo = registrazione.installing;
+        if (!nuovo) return;
+        nuovo.addEventListener("statechange", () => {
+          // `controller` distingue l'aggiornamento dalla prima installazione:
+          // senza, l'avviso comparirebbe a chi apre l'app per la prima volta.
+          if (nuovo.state === "installed" && navigator.serviceWorker.controller) {
+            mostraAvvisoAggiornamento();
+          }
+        });
+      });
+    }).catch(errore => {
       console.warn("Registrazione service worker non riuscita:", errore);
     });
   });
@@ -3380,14 +3665,19 @@ function collegaEventi() {
       rimuoviVoce(pasto, indice);
       return;
     }
-    if (!(valore > 0)) {
-      // "Si rimette il valore di prima" va fatto davvero: l'handler "input" ha
-      // già cambiato il peso in memoria per tenere aggiornati i totali mentre
-      // si digitava, quindi ridisegnare e basta lascerebbe a video l'ultima
-      // cifra battuta invece del peso di partenza.
+    // Numero inutilizzabile (vuoto, negativo) oppure oltre il tetto di una
+    // voce: in tutti e due i casi la riga torna com'era. "Tornare com'era" va
+    // fatto davvero: l'handler "input" ha già cambiato il peso in memoria per
+    // tenere aggiornati i totali mentre si digitava, quindi ridisegnare e basta
+    // lascerebbe a video l'ultima cifra battuta invece del peso di partenza.
+    // Il rifiuto per eccesso va però detto, altrimenti il numero sparisce e
+    // basta: sotto zero l'errore di battitura si vede da sé, a 9000 no.
+    const troppoGrande = valore > 0 && !scriviQuantitaVoce(voce, valore);
+    if (!(valore > 0) || troppoGrande) {
       const originale = modificaPesoInCorso ? Number(modificaPesoInCorso.valore) : NaN;
       if (originale > 0) scriviQuantitaVoce(voce, originale);
       modificaPesoInCorso = null;
+      if (troppoGrande) mostraToast(`Quantità troppo grande: al massimo ${MAX_GRAMMI_VOCE} g per voce`);
       renderGiornata();
       return;
     }
@@ -3397,8 +3687,8 @@ function collegaEventi() {
       if (pilaAnnulla.length > MAX_ANNULLA) pilaAnnulla.shift();
       aggiornaBottoneAnnulla();
     }
+    // Il peso è già stato scritto qui sopra, nel controllo del tetto.
     modificaPesoInCorso = null;
-    scriviQuantitaVoce(voce, valore);
     salvaStato();
     renderGiornata();
   });
@@ -3547,7 +3837,7 @@ function ripristinaCampiProfilo() {
   etaInput.value = p.eta || "";
   pesoInput.value = p.peso || "";
   altezzaInput.value = p.altezza || "";
-  attivitaSelect.value = p.attivita || "Moderato";
+  attivitaSelect.value = attivitaValida(p.attivita);
   correzioneInput.value = p.correzione || "";
   gkgInput.value = p.gPerKg || "";
   percGrassiInput.value = p.percGrassi || "";

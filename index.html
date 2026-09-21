@@ -125,6 +125,14 @@
     Usa «Salva su file» in fondo alla pagina per non perdere il lavoro.
   </div>
 
+  <!-- Una scheda rimasta aperta continua a eseguire il codice di prima: il
+       service worker è network-first, ma chi non ricarica non se ne accorge.
+       Qui si dice che c'è una versione nuova e si offre il ricaricamento. -->
+  <div id="avviso-aggiornamento" class="avviso-aggiornamento hidden no-print" role="status">
+    <span><strong>È disponibile una versione aggiornata.</strong> Le diete restano dove sono.</span>
+    <button type="button" id="aggiorna-btn">Ricarica</button>
+  </div>
+
   <!-- ---------- Dieta aperta ---------- -->
   <!-- Sta in cima perché tutto quello che segue (obiettivi, profilo, giornate)
        appartiene alla dieta scelta qui. Il colore scelto tinge l'intera pagina:

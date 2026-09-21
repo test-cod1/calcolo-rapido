@@ -204,6 +204,17 @@ dell'8% (mai meno di 2 kcal) viene scartato: senza quel limite, al posto di una
 tazza di brodo da 7 kcal veniva proposto mezzo cucchiaio di maionese, 46 kcal,
 perché una misura casalinga non scende sotto il mezzo cucchiaio.
 
+**Restano fuori le bevande alcoliche.** L'etanolo dà 7 kcal per grammo e non è
+un macronutriente: il whisky ha 238 kcal e proteine, grassi e carboidrati a
+zero, quindi pareggiava le calorie di qualunque cosa con uno scarto perfetto su
+ogni riga del confronto, e al posto di un'aranciata compariva del gin. Siccome
+«Bevande alcoliche, analcoliche» è una categoria sola, la categoria non bastava
+a separarli. Li riconosce invece lo scarto fra le calorie dichiarate e quelle
+dei macronutrienti: sopra il 30% sono 21 voci e sono tutte alcoliche, sotto non
+si supera il 5%. Un alcolico resta proponibile al posto di un altro alcolico,
+dove il cambio è quello che si sta cercando davvero — il vino al posto della
+birra.
+
 Restano fuori le quantità sopra i 500 g, che sono equivalenze solo sulla carta.
 La **nota viene rimossa**: descriveva l'alimento di prima, e «pane integrale —
 cotta al dente» finirebbe sul foglio del paziente. Un alimento personalizzato
@@ -266,6 +277,14 @@ Su **93 alimenti** ci sono in più i campi delle misure casalinghe, aggiunti a
 mano e non presenti nel foglio di partenza: `densita` (g/ml) sui 63 liquidi e
 `gCucchiaio` sui 30 che si dosano col cucchiaio. Vedi «Misure casalinghe».
 
+Le **calorie dell'alcol** non stanno in nessuna delle quattro colonne, perché
+l'etanolo non è un macronutriente. Con una bevanda alcolica in giornata, la
+barra dei macronutrienti continua a fare 100% ma quel 100% non copre tutte le
+calorie: sotto il totale l'app scrive quante ne arrivano dall'alcol, così il
+conto resta leggibile. Le categorie non servono a riconoscerle — «Bevande
+alcoliche, analcoliche» è una categoria sola — e bastano invece le calorie che
+i macronutrienti non spiegano: vedi «Sostituzioni equivalenti».
+
 Un valore a **−2 significa «dato non disponibile»**, non zero: è la convenzione
 del foglio di partenza. Sono 41 alimenti (per esempio i carboidrati del
 parmigiano). L'app non lo confonde più con uno zero: sulla riga scrive «n.d.» e
@@ -276,6 +295,14 @@ Per sostituire la tabella: si riesporta il foglio, si tolgono le righe di
 categoria, si ripuliscono i nomi dal nome scientifico fra parentesi quadre e si
 riscrive il file con la stessa struttura. I nomi vanno lasciati come sono: sono
 la chiave con cui l'app ritrova gli alimenti.
+
+Vale anche per i **nomi delle categorie**, refusi compresi: «Carni di tutti I
+tipi» con la I maiuscola, «crakers», «Dolci, ciocc». I gruppi alimentari delle
+sostituzioni sono scritti in `app.js` copiando quelle stringhe, e correggere un
+refuso nella tabella senza correggerlo anche lì sfascia il gruppo — le
+sostituzioni tornano a pescare nella sola categoria di partenza, senza errori e
+senza niente di visibile. Per questo all'avvio l'app confronta le due liste e
+scrive in console quali categorie non trova più.
 
 ## Prova in locale
 
@@ -308,3 +335,16 @@ scarterebbe tutto ciò che inizia con `_`.
 `sw.js` è network-first: chi è online vede sempre l'ultima versione, senza dover
 toccare `CACHE_VERSION`. Quella costante va cambiata solo se si rinominano file
 e si vogliono svuotare le cache vecchie.
+
+«Sempre l'ultima versione» vale però **al caricamento della pagina**. Una scheda
+rimasta aperta — ed è il caso normale, una dieta si scrive in mezza giornata —
+continua a eseguire il codice di prima. Per quelle c'è un riquadro in cima alla
+pagina, «È disponibile una versione aggiornata», con un pulsante che ricarica;
+la pagina non si ricarica mai da sé, perché farlo sotto le mani di chi sta
+scrivendo sarebbe peggio del problema.
+
+Quel riquadro compare quando il browser si accorge che **`sw.js` è cambiato**,
+non `app.js`: è il file del service worker quello che viene confrontato. Perciò,
+se si vuole che le schede aperte vedano l'avviso, **`CACHE_VERSION` va cambiata
+a ogni pubblicazione che conti** — ed è il secondo motivo per toccarla, oltre a
+quello dei file rinominati.
