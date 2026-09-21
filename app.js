@@ -332,6 +332,7 @@ const nuovoCarb = el("nuovo-carb");
 const nuovoAlimentoError = el("nuovo-alimento-error");
 const salvaAlimentoBtn = el("salva-alimento-btn");
 const nuovoAlimentoCoerenza = el("nuovo-alimento-coerenza");
+const nuovoCategoria = el("nuovo-categoria");
 const annullaAlimentoBtn = el("annulla-alimento-btn");
 
 const alimentoScelto = el("alimento-scelto");
@@ -348,6 +349,7 @@ const modificaAlimentoFat = el("modifica-alimento-fat");
 const modificaAlimentoCarb = el("modifica-alimento-carb");
 const modificaAlimentoErrore = el("modifica-alimento-errore");
 const modificaAlimentoCoerenza = el("modifica-alimento-coerenza");
+const modificaAlimentoCategoria = el("modifica-alimento-categoria");
 const modificaAlimentoAvantiBtn = el("modifica-alimento-avanti-btn");
 const modificaAlimentoAnnullaBtn = el("modifica-alimento-annulla-btn");
 const modificaAlimentoConferma = el("modifica-alimento-conferma");
@@ -680,6 +682,10 @@ function leggiAlimentiCustom(dati) {
     .map(a => ({
       id: typeof a.id === "string" && a.id.trim() ? a.id.trim().slice(0, 40) : nuovoIdAlimento(),
       nome: String(a.nome).trim().slice(0, MAX_NOME_ALIMENTO),
+      // Facoltativa: senza, l'alimento non sta in nessun gruppo e si comporta
+      // come prima che il campo esistesse.
+      ...(typeof a.categoria === "string" && a.categoria.trim()
+        ? { categoria: a.categoria.trim().slice(0, 60) } : {}),
       ...normalizzaPer100(a)
     }));
 }
@@ -1432,6 +1438,11 @@ function ricostruisciElenco() {
   alimentiCustom.forEach(a => {
     foodMap.set(a.nome, normalizzaPer100(a));
     if (a.id) idCustomDi.set(a.nome, a.id);
+    // Con una categoria l'alimento entra in un gruppo, e da lì in poi le
+    // sostituzioni lo trattano come tutti gli altri. Se non ce l'ha non si
+    // tocca la mappa: un alimento che porta il nome di uno della tabella
+    // continua a ereditarne la categoria, come prima di questo campo.
+    if (a.categoria) categoriaDi.set(a.nome, String(a.categoria));
   });
 
   foodNames = Array.from(foodMap.keys()).sort((a, b) => formattaNome(a).localeCompare(formattaNome(b), "it"));
@@ -1485,6 +1496,23 @@ async function caricaAlimenti() {
     foodError.classList.remove("hidden");
   }
   ricostruisciElenco();
+}
+
+// Le categorie che esistono davvero in foods.json, in ordine alfabetico. Un
+// elenco scritto a mano qui dentro si sfalderebbe al primo aggiornamento della
+// tabella, e il campo proporrebbe categorie che non raggruppano più niente.
+function categorieDellaTabella() {
+  return Array.from(new Set(alimentiBase.map(a => a && a.categoria).filter(Boolean)))
+    .sort((a, b) => String(a).localeCompare(String(b), "it"));
+}
+
+function riempiSelectCategorie(select, scelta) {
+  const categorie = categorieDellaTabella();
+  select.innerHTML = '<option value="">Nessuna categoria</option>'
+    + categorie.map(c => `<option value="${escapeHtml(c)}">${escapeHtml(c)}</option>`).join("");
+  // Una categoria sparita dalla tabella torna a "Nessuna" invece di restare
+  // selezionata su una voce che non c'è.
+  select.value = scelta && categorie.includes(scelta) ? scelta : "";
 }
 
 function ePersonalizzato(chiave) {
@@ -1808,6 +1836,7 @@ function aggiornaAnteprima() {
 
 function apriFormNuovoAlimento() {
   nuovoAlimentoForm.classList.remove("hidden");
+  riempiSelectCategorie(nuovoCategoria, "");
   nuovoNome.value = foodInput.value.trim();
   nascondiSuggerimenti();
   nuovoNome.focus();
@@ -1854,9 +1883,11 @@ function salvaNuovoAlimento() {
     return;
   }
   const esistente = alimentiCustom.find(a => a.nome === nome);
+  const categoria = nuovoCategoria.value;
   const alimento = {
     id: esistente ? esistente.id : nuovoIdAlimento(),
     nome,
+    ...(categoria ? { categoria } : {}),
     kcal: round1(valori[0]),
     proteine: round1(valori[1]),
     grassi: round1(valori[2]),
@@ -1956,6 +1987,7 @@ function apriModificaAlimento(id) {
   modificaAlimentoProt.value = round1(per100.proteine);
   modificaAlimentoFat.value = round1(per100.grassi);
   modificaAlimentoCarb.value = round1(per100.carboidrati);
+  riempiSelectCategorie(modificaAlimentoCategoria, alimento.categoria || "");
   coerenzaModuloModifica();
   nascondiSuggerimenti();
   mostraPassoModifica("form");
@@ -1995,9 +2027,11 @@ function leggiModuloModifica(originale) {
     erroreModifica("Hai già un alimento con questo nome.");
     return null;
   }
+  const categoria = modificaAlimentoCategoria.value;
   return {
     id: originale.id,
     nome,
+    ...(categoria ? { categoria } : {}),
     kcal: round1(valori[0]),
     proteine: round1(valori[1]),
     grassi: round1(valori[2]),

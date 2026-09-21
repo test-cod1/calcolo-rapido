@@ -228,8 +228,14 @@ dirla è l'avviso sotto il totale, non questo filtro.
 
 Restano fuori le quantità sopra i 500 g, che sono equivalenze solo sulla carta.
 La **nota viene rimossa**: descriveva l'alimento di prima, e «pane integrale —
-cotta al dente» finirebbe sul foglio del paziente. Un alimento personalizzato
-non ha categoria: in quel caso si cerca fra tutti.
+cotta al dente» finirebbe sul foglio del paziente.
+
+Un alimento creato da te partecipa come tutti gli altri **se gli hai dato una
+categoria**; senza, non sta in nessun gruppo e si cerca fra tutti — che è anche
+il suo comportamento di prima che il campo esistesse. Non ha corsie
+preferenziali: entra in classifica per vicinanza come le voci della tabella, e
+se le carni della tabella somigliano di più al pollo di partenza resta sotto il
+taglio.
 
 ### Spostare e scambiare un pasto
 
@@ -307,6 +313,18 @@ La soglia è il 10% e comunque 5 kcal, più stretta di quella che riconosce
 l'alcol in fondo alla giornata (30% e 10 kcal): là serve a separare le bevande
 dal resto della tabella e deve essere larga, qui a intercettare un refuso e
 deve essere sensibile.
+
+**La categoria è facoltativa e serve alle sostituzioni.** Le voci della tabella
+ce l'hanno e da lì finiscono in un gruppo; un alimento creato qui non l'aveva,
+e il difetto era asimmetrico: partendo da un alimento della tabella i tuoi non
+comparivano mai, partendo da un tuo alimento comparivano tutti, tabella intera.
+Dandogliene una entra in un gruppo e le sostituzioni lo trattano come gli
+altri, nei due versi. Il menù si riempie dalle categorie che esistono davvero
+in `foods.json`, non da un elenco scritto nel codice che si sfalderebbe al
+primo aggiornamento della tabella, e una categoria sparita torna a «Nessuna».
+
+Lasciandola vuota non cambia niente rispetto a prima. Il campo è nei due
+moduli, creazione e correzione.
 
 ### Stampa per il paziente
 

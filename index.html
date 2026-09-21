@@ -109,6 +109,9 @@
           <label>Grassi <input type="number" id="modifica-alimento-fat" min="0" step="0.1" inputmode="decimal"></label>
           <label>Carboidrati <input type="number" id="modifica-alimento-carb" min="0" step="0.1" inputmode="decimal"></label>
         </div>
+        <label class="modifica-alimento-campo">Categoria <span class="hint-inline">facoltativa, serve alle sostituzioni</span>
+          <select id="modifica-alimento-categoria"></select>
+        </label>
         <p id="modifica-alimento-coerenza" class="avviso-coerenza hidden"></p>
         <p id="modifica-alimento-errore" class="error hidden"></p>
         <div class="riga-bottoni">
@@ -306,6 +309,8 @@
         <div class="campo"><label for="nuovo-fat">Grassi</label><input type="number" id="nuovo-fat" min="0" step="0.1" inputmode="decimal"></div>
         <div class="campo"><label for="nuovo-carb">Carboidrati</label><input type="number" id="nuovo-carb" min="0" step="0.1" inputmode="decimal"></div>
       </div>
+      <label for="nuovo-categoria">Categoria <span class="hint-inline">facoltativa, serve alle sostituzioni</span></label>
+      <select id="nuovo-categoria"></select>
       <p id="nuovo-alimento-coerenza" class="avviso-coerenza hidden"></p>
       <p id="nuovo-alimento-error" class="error hidden">Servono il nome e tutti e quattro i valori (anche 0).</p>
       <div class="riga-bottoni">

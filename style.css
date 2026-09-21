@@ -1532,3 +1532,11 @@ button.danger:hover:not(:disabled) { background: var(--danger-hover); }
   font-size: 0.82rem;
   color: var(--text-muted);
 }
+
+/* Nota accanto all'etichetta di un campo facoltativo: dice a che cosa serve
+   senza rubare una riga al modulo. */
+.hint-inline {
+  font-weight: 400;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
