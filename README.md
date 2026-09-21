@@ -247,6 +247,47 @@ A differenza del ⇄ di riga, che sostituisce un alimento, e della → che
 posto: dopo uno spostamento non restano in due posti. Tutto è reversibile con
 «Annulla».
 
+### Correggere un alimento creato da te
+
+Nell'elenco dei suggerimenti gli alimenti tuoi portano l'etichetta «mio» e una
+**matita**. Da lì si correggono nome e valori, senza uscire dalla ricerca: il
+momento in cui ci si accorge che un valore è sbagliato è proprio quello in cui
+lo si sta cercando per inserirlo.
+
+Il punto non è il modulo, è cosa succede alle voci **già inserite**. Una voce
+si porta via una copia dei valori al momento dell'inserimento (`copiaPer100`):
+serve a non far cambiare da sotto una dieta già consegnata, ma per un alimento
+che stai correggendo è l'opposto di quello che vuoi, e prima l'unica strada era
+togliere le voci dalle diete e rifarle a mano.
+
+Al salvataggio, se l'alimento è già in qualche dieta, compare un riepilogo di
+**che cosa cambierebbe davvero**: quante voci, in quali diete e giornate, e come
+si sposta il totale di ognuna — calorie e macronutrienti, perché correggendo i
+soli grassi le calorie restano identiche e una riga che dicesse «invariate»
+mentirebbe. Poi si sceglie: **aggiorna anche le voci**, oppure **solo
+l'alimento** per i prossimi inserimenti. Se l'alimento non è in nessuna dieta
+non c'è niente da chiedere e si salva e basta.
+
+Due cose che rendono la faccenda affidabile:
+
+- **Un id stabile.** Ogni alimento creato qui ne ha uno che non cambia quando
+  cambiano nome e valori, e la voce lo porta con sé: è il filo che le lega.
+  Senza, il legame sarebbe il nome, cioè proprio la cosa che si vuole poter
+  correggere. Gli alimenti salvati prima che gli id esistessero ne ricevono uno
+  alla prima apertura, e le voci che avevano già prodotto restano riconoscibili
+  dal nome — con il limite che un tuo alimento omonimo di uno della tabella non
+  è distinguibile, ed è un altro motivo per cui il riepilogo elenca sempre dove
+  andrà a finire la modifica.
+- **«Annulla» esteso all'archivio.** La pila di annullamento lavora sulle
+  giornate della dieta aperta, ma questa è l'unica operazione che può toccare
+  diete chiuse: per lei lo scatto comprende l'intero archivio e gli alimenti
+  creati, così le voci e l'alimento tornano indietro insieme. Con il solo
+  scatto delle giornate «Annulla» avrebbe riportato indietro una dieta
+  lasciando le altre riscritte, che è peggio del non poter annullare.
+
+Salvare dal riquadro di inserimento un alimento con il nome di uno che è già
+tuo passa dalla stessa domanda: è una correzione, non una creazione.
+
 ### Stampa per il paziente
 
 Dal menù ▾ accanto a «Stampa». Foglio con i soli alimenti, le quantità e le

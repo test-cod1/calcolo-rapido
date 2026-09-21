@@ -93,6 +93,41 @@
     </div>
   </div>
 
+  <!-- Correzione di un alimento creato qui, con l'effetto sulle voci già inserite -->
+  <div id="modifica-alimento-overlay" class="installa-overlay hidden no-print" role="dialog" aria-modal="true" aria-labelledby="modifica-alimento-titolo">
+    <div class="installa-modal">
+      <h3 id="modifica-alimento-titolo">Correggi l'alimento</h3>
+
+      <div id="modifica-alimento-form">
+        <p class="hint">Valori per 100 g, come nella tabella.</p>
+        <label class="modifica-alimento-campo">Nome
+          <input type="text" id="modifica-alimento-nome" maxlength="60" autocomplete="off">
+        </label>
+        <div class="modifica-alimento-valori">
+          <label>kcal <input type="number" id="modifica-alimento-kcal" min="0" step="0.1" inputmode="decimal"></label>
+          <label>Proteine <input type="number" id="modifica-alimento-prot" min="0" step="0.1" inputmode="decimal"></label>
+          <label>Grassi <input type="number" id="modifica-alimento-fat" min="0" step="0.1" inputmode="decimal"></label>
+          <label>Carboidrati <input type="number" id="modifica-alimento-carb" min="0" step="0.1" inputmode="decimal"></label>
+        </div>
+        <p id="modifica-alimento-errore" class="error hidden"></p>
+        <div class="riga-bottoni">
+          <button type="button" id="modifica-alimento-avanti-btn">Salva</button>
+          <button type="button" id="modifica-alimento-annulla-btn" class="danger">Annulla</button>
+        </div>
+      </div>
+
+      <div id="modifica-alimento-conferma" class="hidden">
+        <p id="modifica-alimento-riepilogo" class="hint"></p>
+        <div id="modifica-alimento-dove" class="modifica-alimento-dove"></div>
+        <div class="riga-bottoni">
+          <button type="button" id="modifica-alimento-propaga-btn">Aggiorna anche le voci</button>
+          <button type="button" id="modifica-alimento-solo-btn" class="secondary">Solo l'alimento</button>
+          <button type="button" id="modifica-alimento-indietro-btn" class="danger">Annulla</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Sostituzione di un alimento con uno equivalente della stessa categoria -->
   <div id="sostituisci-overlay" class="installa-overlay hidden no-print" role="dialog" aria-modal="true" aria-labelledby="sostituisci-titolo">
     <div class="installa-modal">

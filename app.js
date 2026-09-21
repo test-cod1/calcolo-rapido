@@ -273,6 +273,7 @@ let foodNames = [];             // chiavi ordinate per nome visualizzato
 let indiceRicerca = [];         // stesse voci, con i testi già normalizzati
 let displayToKey = new Map();   // nome visualizzato normalizzato -> chiave
 let categoriaDi = new Map();    // chiave -> categoria (solo per gli alimenti di base)
+let idCustomDi = new Map();     // chiave -> id dell'alimento personalizzato
 let densitaDi = new Map();      // chiave -> g/ml, solo per i liquidi
 let cucchiaioDi = new Map();    // chiave -> grammi in un cucchiaio raso
 let alimentoSelezionato = null; // { chiave, nome, per100 }
@@ -336,6 +337,23 @@ const alimentoScelto = el("alimento-scelto");
 const alimentoSceltoNome = el("alimento-scelto-nome");
 const alimentoSceltoPer100 = el("alimento-scelto-per100");
 const alimentoEliminaBtn = el("alimento-elimina-btn");
+const modificaAlimentoOverlay = el("modifica-alimento-overlay");
+const modificaAlimentoTitolo = el("modifica-alimento-titolo");
+const modificaAlimentoForm = el("modifica-alimento-form");
+const modificaAlimentoNome = el("modifica-alimento-nome");
+const modificaAlimentoKcal = el("modifica-alimento-kcal");
+const modificaAlimentoProt = el("modifica-alimento-prot");
+const modificaAlimentoFat = el("modifica-alimento-fat");
+const modificaAlimentoCarb = el("modifica-alimento-carb");
+const modificaAlimentoErrore = el("modifica-alimento-errore");
+const modificaAlimentoAvantiBtn = el("modifica-alimento-avanti-btn");
+const modificaAlimentoAnnullaBtn = el("modifica-alimento-annulla-btn");
+const modificaAlimentoConferma = el("modifica-alimento-conferma");
+const modificaAlimentoRiepilogo = el("modifica-alimento-riepilogo");
+const modificaAlimentoDove = el("modifica-alimento-dove");
+const modificaAlimentoPropagaBtn = el("modifica-alimento-propaga-btn");
+const modificaAlimentoSoloBtn = el("modifica-alimento-solo-btn");
+const modificaAlimentoIndietroBtn = el("modifica-alimento-indietro-btn");
 
 const modoGruppo = el("modo-gruppo");
 const quantitaInput = el("quantita-input");
@@ -618,6 +636,10 @@ function leggiPasti(salvati) {
       grammi: Math.max(0, Number(v.grammi) || 0),
       nota: String(v.nota || "").slice(0, MAX_NOTA),
       per100: normalizzaPer100(v.per100),
+      // Il legame con l'alimento personalizzato deve sopravvivere alla
+      // ricarica, o dopo un F5 la voce non saprebbe più da dove viene.
+      ...(typeof v.idAlimento === "string" && v.idAlimento.trim()
+        ? { idAlimento: v.idAlimento.trim().slice(0, 40) } : {}),
       ...leggiUnita(v)
     }));
   });
@@ -633,21 +655,49 @@ function salvaAlimentiCustom() {
 // (dato corrotto, o scritto da un'altra pagina dello stesso dominio) faceva
 // esplodere formattaNome dentro ricostruisciElenco — che gira in una async, per
 // cui l'errore restava zitto e la ricerca alimenti si presentava vuota.
+// Un identificatore che non cambia quando cambiano il nome e i valori. È il
+// filo che lega una voce già inserita all'alimento da cui è venuta: senza, il
+// legame sarebbe il nome, cioè proprio la cosa che si vuole poter correggere.
+// Il contatore serve ai casi di due alimenti creati nello stesso millisecondo,
+// che con la sola data avrebbero lo stesso id.
+let contatoreIdAlimento = 0;
+function nuovoIdAlimento() {
+  contatoreIdAlimento += 1;
+  return `a${Date.now().toString(36)}-${contatoreIdAlimento.toString(36)}`;
+}
+
 function leggiAlimentiCustom(dati) {
   if (!Array.isArray(dati)) return [];
   return dati
     // Un nome che non è un testo non è recuperabile: convertirlo darebbe
     // "[object Object]" in mezzo agli alimenti, che è peggio del silenzio.
     .filter(a => a && (typeof a.nome === "string" || typeof a.nome === "number") && String(a.nome).trim() !== "")
-    .map(a => ({ nome: String(a.nome).trim().slice(0, MAX_NOME_ALIMENTO), ...normalizzaPer100(a) }));
+    // Gli alimenti salvati prima che gli id esistessero ne ricevono uno adesso:
+    // da qui in avanti sono rintracciabili come gli altri, e le voci che hanno
+    // già prodotto restano riconoscibili dal nome.
+    .map(a => ({
+      id: typeof a.id === "string" && a.id.trim() ? a.id.trim().slice(0, 40) : nuovoIdAlimento(),
+      nome: String(a.nome).trim().slice(0, MAX_NOME_ALIMENTO),
+      ...normalizzaPer100(a)
+    }));
 }
 
 function caricaAlimentiCustom() {
+  let grezzi = [];
   try {
-    alimentiCustom = leggiAlimentiCustom(JSON.parse(localStorage.getItem(CHIAVE_ALIMENTI) || "[]"));
+    grezzi = JSON.parse(localStorage.getItem(CHIAVE_ALIMENTI) || "[]");
   } catch (e) {
-    alimentiCustom = [];
+    grezzi = [];
   }
+  alimentiCustom = leggiAlimentiCustom(grezzi);
+  // Gli id assegnati adesso vanno riscritti subito. Se restassero solo in
+  // memoria, al prossimo avvio ne nascerebbero di nuovi e le voci timbrate con
+  // quelli di oggi punterebbero a un alimento che non esiste più: la
+  // correzione non le troverebbe, e il legame si spezzerebbe a ogni ricarica.
+  const daRiscrivere = !Array.isArray(grezzi)
+    || grezzi.length !== alimentiCustom.length
+    || grezzi.some(a => !a || typeof a.id !== "string" || !a.id.trim());
+  if (alimentiCustom.length && daRiscrivere) salvaAlimentiCustom();
 }
 
 // ---------- Diete ----------
@@ -1064,7 +1114,7 @@ function chiudiDialogo(overlay) {
 }
 
 function dialogoAperto() {
-  return [copiaPastoOverlay, spostaPastoOverlay, sostituisciOverlay, installaOverlay]
+  return [copiaPastoOverlay, spostaPastoOverlay, sostituisciOverlay, modificaAlimentoOverlay, installaOverlay]
     .find(o => o && !o.classList.contains("hidden")) || null;
 }
 
@@ -1291,7 +1341,11 @@ function ricostruisciElenco() {
     // proporrebbero un formaggio al posto di una verdura.
     if (a.categoria) categoriaDi.set(a.nome, String(a.categoria));
   });
-  alimentiCustom.forEach(a => foodMap.set(a.nome, normalizzaPer100(a)));
+  idCustomDi = new Map();
+  alimentiCustom.forEach(a => {
+    foodMap.set(a.nome, normalizzaPer100(a));
+    if (a.id) idCustomDi.set(a.nome, a.id);
+  });
 
   foodNames = Array.from(foodMap.keys()).sort((a, b) => formattaNome(a).localeCompare(formattaNome(b), "it"));
   displayToKey = new Map();
@@ -1359,8 +1413,15 @@ function mostraSuggerimenti(chiavi) {
     return;
   }
   suggestions.innerHTML = chiavi.map((k, i) => {
-    const tag = ePersonalizzato(k) ? ' <span class="tag-custom">mio</span>' : "";
-    return `<div class="suggestion-item" data-index="${i}">${escapeHtml(formattaNome(k))}${tag}</div>`;
+    // La matita compare solo sugli alimenti tuoi: quelli della tabella CREA non
+    // si correggono, e il posto per accorgersi che un valore è sbagliato è
+    // proprio qui, mentre lo si sta cercando per inserirlo.
+    const id = idCustomDi.get(k);
+    const nome = escapeHtml(formattaNome(k));
+    const tag = id
+      ? ` <span class="tag-custom">mio</span><button type="button" class="suggestion-matita" data-modifica-alimento="${escapeHtml(id)}" title="Correggi ${nome}" aria-label="Correggi ${nome}">✎</button>`
+      : "";
+    return `<div class="suggestion-item" data-index="${i}">${nome}${tag}</div>`;
   }).join("");
   suggestions.dataset.items = JSON.stringify(chiavi);
   suggestions.classList.remove("hidden");
@@ -1448,7 +1509,8 @@ function selezionaAlimento(chiave) {
     const per100 = foodMap.get(chiave);
     const densita = densitaDi.get(chiave) || null;
     const gCucchiaio = cucchiaioDi.get(chiave) || null;
-    alimentoSelezionato = { chiave, nome: formattaNome(chiave), per100, densita, gCucchiaio };
+    alimentoSelezionato = { chiave, nome: formattaNome(chiave), per100, densita, gCucchiaio,
+      idAlimento: idCustomDi.get(chiave) || null };
     alimentoSceltoNome.textContent = alimentoSelezionato.nome;
     // Le conversioni si dicono subito: sono quelle che l'app applica, e vederle
     // scritte evita di doversi fidare al buio.
@@ -1628,7 +1690,8 @@ function aggiornaAnteprima() {
   // cambia valori. È la stessa promessa che l'app fa già a parole quando si
   // elimina un alimento personalizzato («le voci già inserite restano
   // invariate»), e che con l'oggetto condiviso non avrebbe potuto mantenere.
-  calcoloCorrente = { nome: alimentoSelezionato.nome, grammi: v.grammi, per100: copiaPer100(alimentoSelezionato.per100) };
+  calcoloCorrente = { nome: alimentoSelezionato.nome, grammi: v.grammi, per100: copiaPer100(alimentoSelezionato.per100),
+    idAlimento: alimentoSelezionato.idAlimento };
   // L'unità con cui è stata scritta la quantità resta attaccata alla voce: la
   // riga, la stampa e il testo copiato la ripetono come l'ha scritta chi compone
   // la dieta, invece di ritradurla in grammi.
@@ -1676,23 +1739,232 @@ function salvaNuovoAlimento() {
     nuovoAlimentoError.classList.remove("hidden");
     return;
   }
+  const esistente = alimentiCustom.find(a => a.nome === nome);
   const alimento = {
+    id: esistente ? esistente.id : nuovoIdAlimento(),
     nome,
     kcal: round1(valori[0]),
     proteine: round1(valori[1]),
     grassi: round1(valori[2]),
     carboidrati: round1(valori[3])
   };
-  alimentiCustom = alimentiCustom.filter(a => a.nome !== nome);
+  const dopo = () => {
+    chiudiFormNuovoAlimento();
+    foodInput.value = formattaNome(nome);
+    selezionaAlimento(nome);
+    quantitaInput.focus();
+  };
+
+  // Salvare con il nome di un alimento che è già tuo non è una creazione ma una
+  // correzione, e merita la stessa domanda della sezione «I miei alimenti»:
+  // altrimenti da qui si riscriverebbero valori usati in diete intere senza che
+  // nessuno lo dica.
+  if (esistente) {
+    avviaModificaAlimento(esistente, alimento, dopo);
+    return;
+  }
+
   alimentiCustom.push(alimento);
   salvaAlimentiCustom();
   ricostruisciElenco();
-  chiudiFormNuovoAlimento();
-
-  foodInput.value = formattaNome(nome);
-  selezionaAlimento(nome);
+  dopo();
   mostraToast("Alimento salvato su questo dispositivo");
-  quantitaInput.focus();
+}
+
+// Tutte le voci, in tutte le diete, nate da un certo alimento personalizzato.
+// Il legame è l'id. Per le voci inserite prima che gli id esistessero resta il
+// nome, che è tutto quello che hanno: se un tuo alimento si chiama come uno
+// della tabella, quelle vecchie voci non sono distinguibili — per questo la
+// finestra di conferma elenca sempre dove andrà a finire la modifica.
+function vociDelAlimento(alimento) {
+  const atteso = formattaNome(alimento.nome);
+  const trovate = [];
+  archivio.diete.forEach(dieta => {
+    dieta.giornate.forEach(giornata => {
+      PASTI.forEach(pasto => {
+        giornata.pasti[pasto].forEach(voce => {
+          const combacia = voce.idAlimento ? voce.idAlimento === alimento.id : voce.nome === atteso;
+          if (combacia) trovate.push({ dieta, giornata, pasto, voce });
+        });
+      });
+    });
+  });
+  return trovate;
+}
+
+// Scrive l'alimento corretto e, se richiesto, riscrive le voci che ne erano
+// nate. Un solo passo di annullamento per l'operazione intera: le voci e
+// l'alimento devono tornare indietro insieme, o si resterebbe con una dieta
+// riportata ai valori vecchi e un alimento già corretto.
+function scriviAlimento(originale, nuovo, usi, propaga) {
+  registraAnnullaArchivio(`modifica di ${formattaNome(originale.nome)}`);
+  if (propaga) {
+    const per100 = normalizzaPer100(nuovo);
+    const nome = formattaNome(nuovo.nome);
+    usi.forEach(({ voce }) => {
+      voce.nome = nome;
+      voce.per100 = copiaPer100(per100);
+      // Le voci vecchie riconosciute dal nome prendono il timbro adesso: alla
+      // prossima correzione saranno rintracciabili anche se il nome cambia.
+      voce.idAlimento = nuovo.id;
+    });
+  }
+  alimentiCustom = alimentiCustom.filter(a => a.id !== originale.id);
+  alimentiCustom.push(nuovo);
+  salvaAlimentiCustom();
+  ricostruisciElenco();
+  // Il riquadro di inserimento può avere in campo proprio quell'alimento: la
+  // riga dei valori sotto al nome è quella di prima, e il nome stesso può
+  // essere cambiato. Si rilegge, così quello che si sta per inserire è già la
+  // versione corretta.
+  if (alimentoSelezionato && alimentoSelezionato.idAlimento === nuovo.id) {
+    foodInput.value = formattaNome(nuovo.nome);
+    selezionaAlimento(nuovo.nome);
+  }
+  salvaStato();
+  renderGiornata();
+}
+
+// ---------- Correzione di un alimento personalizzato ----------
+// La correzione in corso: l'alimento di partenza, i valori nuovi, le voci che
+// ne sono nate e che cosa fare dopo (il riquadro di inserimento e la sezione
+// chiudono in modi diversi).
+let modificaAlimento = null;
+
+function apriModificaAlimento(id) {
+  const alimento = alimentiCustom.find(a => a.id === id);
+  if (!alimento) return;
+  const per100 = normalizzaPer100(alimento);
+  modificaAlimento = { originale: alimento, dopo: chiudiModificaAlimento };
+  modificaAlimentoTitolo.textContent = `Correggi «${formattaNome(alimento.nome)}»`;
+  modificaAlimentoNome.value = formattaNome(alimento.nome);
+  modificaAlimentoKcal.value = round1(per100.kcal);
+  modificaAlimentoProt.value = round1(per100.proteine);
+  modificaAlimentoFat.value = round1(per100.grassi);
+  modificaAlimentoCarb.value = round1(per100.carboidrati);
+  nascondiSuggerimenti();
+  mostraPassoModifica("form");
+  apriDialogo(modificaAlimentoOverlay);
+}
+
+function chiudiModificaAlimento() {
+  modificaAlimento = null;
+  chiudiDialogo(modificaAlimentoOverlay);
+}
+
+function mostraPassoModifica(passo) {
+  modificaAlimentoForm.classList.toggle("hidden", passo !== "form");
+  modificaAlimentoConferma.classList.toggle("hidden", passo !== "conferma");
+  modificaAlimentoErrore.classList.add("hidden");
+}
+
+function erroreModifica(testo) {
+  modificaAlimentoErrore.textContent = testo;
+  modificaAlimentoErrore.classList.remove("hidden");
+}
+
+// Dal modulo ai valori, con i controlli che valgono anche per la creazione.
+// Torna null e scrive l'errore quando qualcosa non va.
+function leggiModuloModifica(originale) {
+  const nome = modificaAlimentoNome.value.trim().slice(0, MAX_NOME_ALIMENTO);
+  const valori = [modificaAlimentoKcal, modificaAlimentoProt, modificaAlimentoFat, modificaAlimentoCarb]
+    .map(i => parseFloat(i.value));
+  if (!nome || valori.some(v => isNaN(v) || v < 0)) {
+    erroreModifica("Scrivi un nome e quattro numeri non negativi.");
+    return null;
+  }
+  // Due alimenti tuoi con lo stesso nome sarebbero indistinguibili nell'elenco
+  // e nella ricerca: meglio fermarsi qui che lasciarli convivere.
+  const gemello = alimentiCustom.find(a => a.id !== originale.id && a.nome === nome);
+  if (gemello) {
+    erroreModifica("Hai già un alimento con questo nome.");
+    return null;
+  }
+  return {
+    id: originale.id,
+    nome,
+    kcal: round1(valori[0]),
+    proteine: round1(valori[1]),
+    grassi: round1(valori[2]),
+    carboidrati: round1(valori[3])
+  };
+}
+
+// Il passaggio comune: se l'alimento non è in nessuna dieta si scrive e basta,
+// altrimenti si chiede, perché da qui si possono riscrivere voci di diete che
+// in questo momento non si stanno nemmeno guardando.
+function avviaModificaAlimento(originale, nuovo, dopo) {
+  const usi = vociDelAlimento(originale);
+  if (!usi.length) {
+    scriviAlimento(originale, nuovo, [], false);
+    if (dopo) dopo();
+    mostraToast("Alimento aggiornato");
+    return;
+  }
+  modificaAlimento = { originale, nuovo, usi, dopo };
+  mostraConfermaModifica();
+  if (modificaAlimentoOverlay.classList.contains("hidden")) apriDialogo(modificaAlimentoOverlay);
+}
+
+// Dice quante voci, in quali diete, e di quanto cambia il totale di ogni
+// giornata toccata: è il numero su cui si decide, e senza si firmerebbe al
+// buio una modifica che può spostare una dieta di centinaia di calorie.
+function mostraConfermaModifica() {
+  const { originale, nuovo, usi } = modificaAlimento;
+  const per100Nuovo = normalizzaPer100(nuovo);
+  modificaAlimentoTitolo.textContent = `Correggi «${formattaNome(originale.nome)}»`;
+  const rinominato = formattaNome(originale.nome) !== formattaNome(nuovo.nome);
+  modificaAlimentoRiepilogo.textContent =
+    `${formattaNome(originale.nome)} è già in ${usi.length} ${usi.length === 1 ? "voce" : "voci"}.`
+    + (rinominato ? ` Aggiornandole prenderebbero anche il nome nuovo, «${formattaNome(nuovo.nome)}».` : "")
+    + " Ecco come cambierebbero le giornate che le contengono:";
+
+  const perGiornata = new Map();
+  usi.forEach(u => {
+    if (!perGiornata.has(u.giornata)) perGiornata.set(u.giornata, { dieta: u.dieta, voci: [] });
+    perGiornata.get(u.giornata).voci.push(u.voce);
+  });
+
+  modificaAlimentoDove.innerHTML = Array.from(perGiornata.entries()).map(([giornata, dati]) => {
+    const prima = totaliDi(giornata.pasti);
+    const scarti = dati.voci.reduce((somma, voce) => {
+      const nuovi = calcolaVoce(per100Nuovo, voce.grammi);
+      const vecchi = calcolaVoce(voce.per100, voce.grammi);
+      return {
+        kcal: somma.kcal + nuovi.kcal - vecchi.kcal,
+        proteine: somma.proteine + nuovi.proteine - vecchi.proteine,
+        grassi: somma.grassi + nuovi.grassi - vecchi.grassi,
+        carboidrati: somma.carboidrati + nuovi.carboidrati - vecchi.carboidrati
+      };
+    }, { kcal: 0, proteine: 0, grassi: 0, carboidrati: 0 });
+
+    const macro = [["proteine", "P"], ["grassi", "G"], ["carboidrati", "C"]]
+      .filter(([k]) => round1(scarti[k]) !== 0)
+      .map(([k, sigla]) => `${segno(round1(scarti[k]))} ${sigla}`)
+      .join(" · ");
+    const inKcal = Math.round(scarti.kcal) === 0
+      ? `${arrotonda(prima.kcal)} kcal invariate`
+      : `${arrotonda(prima.kcal)} → ${arrotonda(prima.kcal + scarti.kcal)} kcal`;
+    const cambio = macro ? `${inKcal} · ${macro}` : inKcal;
+    return `
+      <div class="modifica-alimento-riga">
+        <span>${escapeHtml(dati.dieta.nome)} · ${escapeHtml(giornata.nome)}</span>
+        <span class="modifica-alimento-kcal">${cambio}</span>
+      </div>`;
+  }).join("");
+
+  mostraPassoModifica("conferma");
+}
+
+function concludiModificaAlimento(propaga) {
+  if (!modificaAlimento || !modificaAlimento.nuovo) return;
+  const { originale, nuovo, usi, dopo } = modificaAlimento;
+  scriviAlimento(originale, nuovo, usi, propaga);
+  modificaAlimento = null;
+  if (dopo) dopo();
+  mostraToast(propaga
+    ? `Aggiornato, con ${usi.length} ${usi.length === 1 ? "voce" : "voci"} nelle diete`
+    : "Aggiornato solo l'alimento: le voci già inserite restano com'erano");
 }
 
 function eliminaAlimentoPersonalizzato() {
@@ -1743,6 +2015,21 @@ function registraAnnulla(descrizione) {
   aggiornaBottoneAnnulla();
 }
 
+// Uno scatto dell'INTERO archivio, diete chiuse comprese, più gli alimenti
+// creati. Serve alla correzione di un alimento personalizzato, che è l'unica
+// operazione capace di toccare diete diverse da quella aperta: con il solo
+// scatto delle giornate «Annulla» ne riporterebbe indietro una e lascerebbe le
+// altre riscritte, che è peggio del non poter annullare affatto.
+function registraAnnullaArchivio(descrizione) {
+  pilaAnnulla.push({
+    archivio: JSON.parse(JSON.stringify(archivio)),
+    alimentiCustom: JSON.parse(JSON.stringify(alimentiCustom)),
+    descrizione
+  });
+  if (pilaAnnulla.length > MAX_ANNULLA) pilaAnnulla.shift();
+  aggiornaBottoneAnnulla();
+}
+
 // Descrizione con il nome della scheda, ma solo quando le schede sono più di
 // una: con una sola giornata sarebbe rumore inutile.
 function conNomeGiornata(testo) {
@@ -1760,8 +2047,16 @@ function aggiornaBottoneAnnulla() {
 function annullaUltima() {
   const ultima = pilaAnnulla.pop();
   if (!ultima) return;
-  state.giornate = ultima.giornate;
-  state.attiva = Math.min(ultima.attiva, state.giornate.length - 1);
+  if (ultima.archivio) {
+    archivio = ultima.archivio;
+    state = archivio.diete[archivio.dietaAttiva];
+    alimentiCustom = ultima.alimentiCustom;
+    salvaAlimentiCustom();
+    ricostruisciElenco();
+  } else {
+    state.giornate = ultima.giornate;
+    state.attiva = Math.min(ultima.attiva, state.giornate.length - 1);
+  }
   salvaStato();
   renderGiornata();
   aggiornaBottoneAnnulla();
@@ -1808,7 +2103,8 @@ function aggiungiAlPasto() {
     per100: calcoloCorrente.per100,
     ...(calcoloCorrente.densita ? { densita: calcoloCorrente.densita } : {}),
     ...(calcoloCorrente.gCucchiaio ? { gCucchiaio: calcoloCorrente.gCucchiaio } : {}),
-    ...(calcoloCorrente.unita ? { unita: calcoloCorrente.unita, quantita: calcoloCorrente.quantita } : {})
+    ...(calcoloCorrente.unita ? { unita: calcoloCorrente.unita, quantita: calcoloCorrente.quantita } : {}),
+    ...(calcoloCorrente.idAlimento ? { idAlimento: calcoloCorrente.idAlimento } : {})
   });
   salvaStato();
   renderGiornata();
@@ -2541,6 +2837,11 @@ function applicaSostituzione(indiceCandidato) {
   const cucchiaioNuovo = cucchiaioDi.get(scelto.chiave) || null;
   delete voce.densita; delete voce.gCucchiaio; delete voce.unita;
   delete voce.quantita; delete voce.ml;
+  // La voce ora viene da un altro alimento: il timbro di prima la legherebbe a
+  // un personalizzato che non c'entra più, e una sua correzione la seguirebbe.
+  delete voce.idAlimento;
+  const idNuovo = idCustomDi.get(scelto.chiave);
+  if (idNuovo) voce.idAlimento = idNuovo;
   if (densitaNuova) voce.densita = densitaNuova;
   if (cucchiaioNuovo) voce.gCucchiaio = cucchiaioNuovo;
   const misuraNuova = misureDisponibili(densitaNuova, cucchiaioNuovo).includes(scelto.unita)
@@ -3509,6 +3810,13 @@ function collegaEventi() {
   });
 
   suggestions.addEventListener("click", (e) => {
+    // La matita sta dentro la riga: va intercettata prima, o il clic
+    // selezionerebbe l'alimento invece di aprirne la correzione.
+    const correggi = e.target.closest("[data-modifica-alimento]");
+    if (correggi) {
+      apriModificaAlimento(correggi.dataset.modificaAlimento);
+      return;
+    }
     const item = e.target.closest(".suggestion-item");
     if (item) scegliSuggerimento(Number(item.dataset.index));
   });
@@ -3522,6 +3830,22 @@ function collegaEventi() {
   salvaAlimentoBtn.addEventListener("click", salvaNuovoAlimento);
   annullaAlimentoBtn.addEventListener("click", chiudiFormNuovoAlimento);
   alimentoEliminaBtn.addEventListener("click", eliminaAlimentoPersonalizzato);
+
+  modificaAlimentoAvantiBtn.addEventListener("click", () => {
+    if (!modificaAlimento) return;
+    const nuovo = leggiModuloModifica(modificaAlimento.originale);
+    if (nuovo) avviaModificaAlimento(modificaAlimento.originale, nuovo, chiudiModificaAlimento);
+  });
+  modificaAlimentoPropagaBtn.addEventListener("click", () => concludiModificaAlimento(true));
+  modificaAlimentoSoloBtn.addEventListener("click", () => concludiModificaAlimento(false));
+  modificaAlimentoAnnullaBtn.addEventListener("click", chiudiModificaAlimento);
+  modificaAlimentoIndietroBtn.addEventListener("click", chiudiModificaAlimento);
+  modificaAlimentoOverlay.addEventListener("click", (e) => {
+    if (e.target === modificaAlimentoOverlay) chiudiModificaAlimento();
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") chiudiModificaAlimento();
+  });
 
   // Quantità e modalità di calcolo
   Array.from(modoGruppo.children).forEach(btn => {

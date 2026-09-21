@@ -1446,3 +1446,54 @@ button.danger:hover:not(:disabled) { background: var(--danger-hover); }
   min-height: 2.4em;
   line-height: 1.4;
 }
+
+/* ---------- Correzione di un alimento personalizzato ---------- */
+
+/* La matita compare nella riga del suggerimento, accanto all'etichetta "mio". */
+.suggestion-matita {
+  width: auto;
+  padding: 0 4px;
+  margin-left: 6px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.95rem;
+  line-height: 1;
+  cursor: pointer;
+}
+.suggestion-matita:hover, .suggestion-matita:focus-visible { color: var(--accent); }
+
+.modifica-alimento-campo { display: block; margin: 10px 0 0; }
+.modifica-alimento-valori {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 10px;
+  margin: 10px 0 4px;
+}
+.modifica-alimento-valori label,
+.modifica-alimento-campo { font-size: 0.85rem; color: var(--text-muted); }
+.modifica-alimento-valori input, .modifica-alimento-campo input { width: 100%; }
+
+.modifica-alimento-dove {
+  margin: 10px 0 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  overflow: hidden;
+  max-height: 200px;
+  overflow-y: auto;
+}
+.modifica-alimento-riga {
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  padding: 9px 12px;
+  font-size: 0.85rem;
+}
+.modifica-alimento-riga + .modifica-alimento-riga { border-top: 1px solid var(--border); }
+.modifica-alimento-kcal { font-weight: 600; white-space: nowrap; }
+
+/* Col dito 23×15 px non si prendono: la matita sta dentro una riga che al
+   tocco seleziona l'alimento, quindi mancarla fa la cosa sbagliata. */
+@media (pointer: coarse) {
+  .suggestion-matita { padding: 0 12px; min-height: 40px; font-size: 1.1rem; }
+}
