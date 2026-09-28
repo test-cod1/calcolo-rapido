@@ -57,11 +57,16 @@
     <button type="button" id="installa-btn" class="hero-installa hidden">⤓ Installa come app</button>
   </header>
 
-  <!-- Copia di un pasto in una o più altre giornate -->
+  <!-- Copia di un pasto in un pasto a scelta, in una o più giornate -->
   <div id="copia-pasto-overlay" class="installa-overlay hidden no-print" role="dialog" aria-modal="true" aria-labelledby="copia-pasto-titolo">
     <div class="installa-modal">
       <h3 id="copia-pasto-titolo">Copia il pasto</h3>
-      <p class="hint">Gli alimenti vengono <strong>aggiunti</strong> a quelli già presenti nello stesso pasto delle giornate scelte.</p>
+      <p class="hint">Gli alimenti vengono <strong>aggiunti</strong> a quelli già presenti nel pasto scelto delle giornate spuntate.</p>
+      <div class="sposta-pasto-campi">
+        <label>Nel pasto
+          <select id="copia-pasto-destinazione"></select>
+        </label>
+      </div>
       <div id="copia-pasto-elenco" class="copia-pasto-elenco"></div>
       <p id="copia-pasto-errore" class="error hidden">Scegli almeno una giornata.</p>
       <div class="riga-bottoni">
@@ -373,7 +378,8 @@
   <!-- ---------- Giornata in costruzione ---------- -->
   <section class="card" id="card-giornata">
     <!-- Schede delle giornate, in stile browser: fino a 7, si passa dall'una
-         all'altra con un tocco. Un clic sulla scheda già aperta la rinomina. -->
+         all'altra con un tocco. Un clic sulla scheda già aperta la rinomina;
+         trascinandole (col dito: tenendo premuto) si cambia l'ordine. -->
     <div class="giornate-barra no-print">
       <div class="giornate-schede" id="giornate-schede" role="tablist" aria-label="Giornate"></div>
       <button type="button" id="giornata-nuova-btn" class="giornata-nuova-btn" title="Aggiungi una giornata" aria-label="Aggiungi una giornata">+</button>

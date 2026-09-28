@@ -51,7 +51,10 @@ Tre livelli, dal più grande al più piccolo:
   propri. Fino a 10, si cambia dal menù in cima alla pagina. Le diete non
   condividono nulla fra loro.
 - **Giornata** — una variante della stessa dieta (fino a 7 schede). Le giornate
-  di una dieta condividono obiettivi e profilo.
+  di una dieta condividono obiettivi e profilo. Le schede si riordinano
+  trascinandole come nei browser (col dito: tenendo premuto un istante; da
+  tastiera: Ctrl+Maiusc+frecce); l'ordine è quello della stampa e del testo
+  copiato, e lo spostamento si annulla con «Annulla».
 - **Pasto** — colazione, spuntino del mattino, pranzo, merenda, cena, spuntino
   serale.
 
@@ -258,6 +261,16 @@ A differenza del ⇄ di riga, che sostituisce un alimento, e della → che
 **copia** un pasto in altre giornate lasciandolo dov'è, qui le voci cambiano
 posto: dopo uno spostamento non restano in due posti. Tutto è reversibile con
 «Annulla».
+
+### Copiare un pasto
+
+La → nella testata di un pasto lo **copia** lasciandolo dov'è: gli alimenti si
+aggiungono a quelli già presenti nella destinazione. Anche qui la destinazione
+è una coppia: **quale pasto** (di norma lo stesso, ma si può scegliere, per
+esempio la colazione del martedì nella merenda del mercoledì) e **in quali
+giornate**, una o più. Con un pasto diverso da quello di partenza si può
+spuntare anche la giornata aperta; ogni riga dice cosa c'è già nel pasto
+scelto.
 
 ### Correggere un alimento creato da te
 

@@ -401,6 +401,7 @@ const annullaBtn = el("annulla-btn");
 const copiaPastoOverlay = el("copia-pasto-overlay");
 const copiaPastoTitolo = el("copia-pasto-titolo");
 const copiaPastoElenco = el("copia-pasto-elenco");
+const copiaPastoDestinazione = el("copia-pasto-destinazione");
 const copiaPastoErrore = el("copia-pasto-errore");
 const copiaPastoConfermaBtn = el("copia-pasto-conferma-btn");
 const copiaPastoAnnullaBtn = el("copia-pasto-annulla-btn");
@@ -2348,7 +2349,7 @@ function pastoHtml(pasto, kcalGiorno) {
         <span class="pasto-kcal">${arrotonda(t.kcal)} kcal <span class="pasto-quota">(${quota}%)</span>${scartoPastoHtml(pasto, t.kcal)}</span>
         <div class="pasto-azioni no-print">
           <button type="button" data-copia-pasto="${escapeHtml(pasto)}" title="Copia questo pasto come testo" aria-label="Copia ${pasto} come testo">📋</button>
-          ${state.giornate.length > 1 ? `<button type="button" data-porta-pasto="${escapeHtml(pasto)}" title="Copia questo pasto in altre giornate" aria-label="Copia ${pasto} in altre giornate">→</button>` : ""}
+          <button type="button" data-porta-pasto="${escapeHtml(pasto)}" title="Copia questo pasto in un altro pasto o in altre giornate" aria-label="Copia ${pasto} in un altro pasto o in altre giornate">→</button>
           <button type="button" data-sposta-pasto="${escapeHtml(pasto)}" title="Sposta o scambia questo pasto" aria-label="Sposta o scambia ${pasto}">⇅</button>
           <button type="button" data-svuota-pasto="${escapeHtml(pasto)}" title="Svuota questo pasto" aria-label="Svuota ${pasto}">🗑</button>
         </div>
@@ -2544,9 +2545,10 @@ function renderSchede() {
                  maxlength="40" data-rinomina aria-label="Nome della giornata">
         </div>`;
     }
+    const riordina = multipla ? " · trascina per spostarla" : "";
     const titolo = attiva
-      ? `${g.nome} — tocca di nuovo per rinominare`
-      : `Apri ${g.nome} (${kcal} kcal)`;
+      ? `${g.nome} — tocca di nuovo per rinominare${riordina}`
+      : `Apri ${g.nome} (${kcal} kcal)${riordina}`;
     return `
       <div class="giornata-scheda${attiva ? " attiva" : ""}">
         <button type="button" class="scheda-apri" data-indice="${i}" role="tab"
@@ -2726,6 +2728,133 @@ function chiudiGiornata(indice) {
   }
   salvaStato();
   renderGiornata();
+}
+
+// Riordino delle schede, come nei browser: la giornata cambia posizione e
+// resta aperta quella che lo era, anche se nel frattempo ha cambiato indice.
+function spostaGiornata(da, a) {
+  const n = state.giornate.length;
+  if (da === a || da < 0 || a < 0 || da >= n || a >= n) return;
+  const aperta = state.giornate[state.attiva];
+  registraAnnulla(`spostamento di ${state.giornate[da].nome}`);
+  const [giornata] = state.giornate.splice(da, 1);
+  state.giornate.splice(a, 0, giornata);
+  state.attiva = state.giornate.indexOf(aperta);
+  chiudiRinominaScheda();
+  salvaStato();
+  renderGiornata();
+}
+
+// Trascinamento delle schede. Col mouse parte appena il puntatore si sposta
+// di qualche pixel; col dito serve una pressione prolungata, perché uno
+// scorrimento immediato è già lo scorrimento della striscia di schede.
+// Durante il trascinamento la scheda segue il puntatore e le altre si fanno
+// da parte; la posizione vera cambia solo al rilascio, con un solo passo
+// d'annullamento.
+const SOGLIA_TRASCINA = 6;
+const ATTESA_TRASCINA_TOCCO = 350;
+let trascinaScheda = null;
+// Il clic che segue il rilascio non deve aprire né rinominare la scheda.
+let ignoraClicScheda = false;
+
+function iniziaTrascinaScheda(e) {
+  if (e.button !== 0 || state.giornate.length < 2) return;
+  const apri = e.target.closest(".scheda-apri");
+  if (!apri) return;
+  trascinaScheda = {
+    indice: Number(apri.dataset.indice),
+    scheda: apri.parentElement,
+    id: e.pointerId,
+    x0: e.clientX,
+    y0: e.clientY,
+    tocco: e.pointerType !== "mouse",
+    attivo: false,
+    timer: null,
+    destinazione: Number(apri.dataset.indice)
+  };
+  if (trascinaScheda.tocco) {
+    trascinaScheda.timer = setTimeout(avviaTrascinaScheda, ATTESA_TRASCINA_TOCCO);
+  }
+}
+
+function avviaTrascinaScheda() {
+  const t = trascinaScheda;
+  if (!t || t.attivo) return;
+  clearTimeout(t.timer);
+  t.attivo = true;
+  t.schede = Array.from(giornateSchede.children);
+  t.rect = t.schede.map(s => s.getBoundingClientRect());
+  t.passo = t.rect[t.indice].width + (parseFloat(getComputedStyle(giornateSchede).columnGap) || 0);
+  try { giornateSchede.setPointerCapture(t.id); } catch (_) { /* puntatore già rilasciato */ }
+  giornateSchede.classList.add("in-trascinamento");
+  t.scheda.classList.add("trascinata");
+  if (t.tocco && navigator.vibrate) navigator.vibrate(15);
+}
+
+function muoviTrascinaScheda(e) {
+  const t = trascinaScheda;
+  if (!t || e.pointerId !== t.id) return;
+  const dx = e.clientX - t.x0;
+  if (!t.attivo) {
+    // Col dito, un movimento prima della pressione prolungata è uno
+    // scorrimento: il trascinamento non parte più.
+    if (t.tocco) {
+      if (Math.hypot(dx, e.clientY - t.y0) > 10) annullaTrascinaScheda();
+      return;
+    }
+    if (Math.abs(dx) < SOGLIA_TRASCINA) return;
+    avviaTrascinaScheda();
+  }
+  const r = t.rect;
+  const i = t.indice;
+  const ultima = r.length - 1;
+  const spostamento = Math.max(r[0].left - r[i].left, Math.min(r[ultima].right - r[i].right, dx));
+  t.scheda.style.transform = `translateX(${spostamento}px)`;
+
+  // Nuova posizione: la scheda scavalca una vicina quando il suo bordo ne
+  // supera il centro. Col centro al posto del bordo una scheda larga non
+  // arriverebbe mai in fondo oltre una stretta.
+  const sinistra = r[i].left + spostamento;
+  const destra = r[i].right + spostamento;
+  let destinazione = i;
+  r.forEach((q, j) => {
+    const centroVicina = q.left + q.width / 2;
+    if (j > i && destra > centroVicina) destinazione = Math.max(destinazione, j);
+    if (j < i && sinistra < centroVicina) destinazione = Math.min(destinazione, j);
+  });
+  t.destinazione = destinazione;
+  t.schede.forEach((s, j) => {
+    if (j === i) return;
+    let verso = 0;
+    if (i < destinazione && j > i && j <= destinazione) verso = -1;
+    if (destinazione < i && j >= destinazione && j < i) verso = 1;
+    s.style.transform = verso ? `translateX(${verso * t.passo}px)` : "";
+  });
+}
+
+function pulisciTrascinaScheda() {
+  const t = trascinaScheda;
+  trascinaScheda = null;
+  if (!t) return null;
+  clearTimeout(t.timer);
+  if (t.attivo) {
+    giornateSchede.classList.remove("in-trascinamento");
+    t.schede.forEach(s => { s.style.transform = ""; s.classList.remove("trascinata"); });
+  }
+  return t;
+}
+
+function annullaTrascinaScheda() {
+  pulisciTrascinaScheda();
+}
+
+function fineTrascinaScheda(e) {
+  if (!trascinaScheda || e.pointerId !== trascinaScheda.id) return;
+  const t = pulisciTrascinaScheda();
+  if (!t.attivo) return;
+  ignoraClicScheda = true;
+  setTimeout(() => { ignoraClicScheda = false; }, 0);
+  spostaGiornata(t.indice, t.destinazione);
 }
 
 // ---------- Sostituzioni equivalenti ----------
@@ -3030,33 +3159,60 @@ function applicaSostituzione(indiceCandidato) {
 // Il pasto viene AGGIUNTO a quello di destinazione, non lo sostituisce: se la
 // destinazione è vuota (il caso normale) l'effetto è una copia pulita, e se
 // contiene già qualcosa non si distrugge lavoro fatto.
+//
+// La destinazione è una coppia giornata + pasto: di norma lo stesso pasto in
+// altre giornate, ma si può sceglierne uno diverso (la colazione del martedì
+// nella merenda del mercoledì). Con un pasto diverso diventa una destinazione
+// valida anche la giornata aperta.
 
 let pastoDaCopiare = null;
 
 function apriCopiaPasto(pasto) {
   const voci = pastiCorrenti()[pasto];
-  if (!voci || !voci.length || state.giornate.length < 2) return;
+  if (!voci || !voci.length) return;
   pastoDaCopiare = pasto;
 
   const t = totaliVoci(voci);
   copiaPastoTitolo.textContent = `Copia «${pasto}» (${voci.length} ${voci.length === 1 ? "alimento" : "alimenti"}, ${arrotonda(t.kcal)} kcal) in…`;
 
-  copiaPastoElenco.innerHTML = state.giornate.map((g, i) => {
-    if (i === state.attiva) return "";
-    const esistenti = g.pasti[pasto] || [];
-    const stato = esistenti.length
-      ? `${esistenti.length} ${esistenti.length === 1 ? "alimento" : "alimenti"} già presenti (${arrotonda(totaliVoci(esistenti).kcal)} kcal)`
-      : "pasto vuoto";
-    return `
-      <label class="copia-pasto-riga">
-        <input type="checkbox" value="${i}">
-        <span class="copia-pasto-nome">${escapeHtml(g.nome)}</span>
-        <span class="copia-pasto-stato">${stato}</span>
-      </label>`;
-  }).join("");
+  copiaPastoDestinazione.innerHTML = PASTI.map(p =>
+    `<option value="${escapeHtml(p)}">${p}${p === pasto ? " (lo stesso)" : ""}</option>`).join("");
+  // Con una giornata sola l'unica copia possibile è in un altro pasto di questa.
+  const sola = state.giornate.length < 2;
+  copiaPastoDestinazione.value = sola ? PASTI.find(p => p !== pasto) : pasto;
+  renderCopiaPastoElenco(sola ? [state.attiva] : []);
 
   copiaPastoErrore.classList.add("hidden");
   apriDialogo(copiaPastoOverlay);
+}
+
+// L'elenco segue il pasto di destinazione: lo stato ("pasto vuoto", "già
+// presenti") è quello del pasto scelto, e la giornata aperta si può spuntare
+// solo quando il pasto è diverso da quello di partenza. Le spunte già messe
+// restano al cambio di pasto.
+function renderCopiaPastoElenco(spuntate) {
+  const destinazione = copiaPastoDestinazione.value;
+  const scelte = new Set(spuntate);
+  copiaPastoElenco.innerHTML = state.giornate.map((g, i) => {
+    const partenza = i === state.attiva && destinazione === pastoDaCopiare;
+    const esistenti = g.pasti[destinazione] || [];
+    const stato = partenza
+      ? "è il pasto di partenza"
+      : esistenti.length
+        ? `${esistenti.length} ${esistenti.length === 1 ? "alimento" : "alimenti"} già presenti (${arrotonda(totaliVoci(esistenti).kcal)} kcal)`
+        : "pasto vuoto";
+    const nome = i === state.attiva ? `${g.nome} (questa)` : g.nome;
+    return `
+      <label class="copia-pasto-riga${partenza ? " disabilitata" : ""}">
+        <input type="checkbox" value="${i}"${partenza ? " disabled" : scelte.has(i) ? " checked" : ""}>
+        <span class="copia-pasto-nome">${escapeHtml(nome)}</span>
+        <span class="copia-pasto-stato">${stato}</span>
+      </label>`;
+  }).join("");
+}
+
+function copiaPastoSpuntate() {
+  return Array.from(copiaPastoElenco.querySelectorAll("input:checked:not(:disabled)")).map(c => Number(c.value));
 }
 
 function chiudiCopiaPasto() {
@@ -3066,27 +3222,35 @@ function chiudiCopiaPasto() {
 
 function confermaCopiaPasto() {
   if (!pastoDaCopiare) return;
-  const scelte = Array.from(copiaPastoElenco.querySelectorAll("input:checked")).map(c => Number(c.value));
+  const destinazione = copiaPastoDestinazione.value;
+  const scelte = copiaPastoSpuntate()
+    .filter(i => !(i === state.attiva && destinazione === pastoDaCopiare));
   if (!scelte.length) {
     copiaPastoErrore.classList.remove("hidden");
     return;
   }
-  const voci = pastiCorrenti()[pastoDaCopiare] || [];
+  // Fotografia delle voci PRIMA di toccare le destinazioni, come testo: da lì
+  // si ricava una copia nuova per ognuna, così le giornate non condividono gli
+  // stessi oggetti e correggere un peso di qua non lo cambia di là.
+  const voci = JSON.stringify(pastiCorrenti()[pastoDaCopiare] || []);
   const nomi = scelte.map(i => state.giornate[i].nome);
-  registraAnnulla(`copia di ${pastoDaCopiare} in ${nomi.join(", ")}`);
+  const altroPasto = destinazione !== pastoDaCopiare;
+  registraAnnulla(`copia di ${pastoDaCopiare} in ${nomi.join(", ")}${altroPasto ? ` (${destinazione})` : ""}`);
 
   scelte.forEach(i => {
-    // Copia profonda: le due giornate non devono condividere gli stessi
-    // oggetti, altrimenti correggere un peso di qua lo cambierebbe di là.
-    const copie = JSON.parse(JSON.stringify(voci));
-    state.giornate[i].pasti[pastoDaCopiare].push(...copie);
+    state.giornate[i].pasti[destinazione].push(...JSON.parse(voci));
   });
 
   const pasto = pastoDaCopiare;
   chiudiCopiaPasto();
   salvaStato();
   renderGiornata();
-  mostraToast(`${pasto} copiato in ${nomi.length} ${nomi.length === 1 ? "giornata" : "giornate"}`);
+  const giornate = `${nomi.length} ${nomi.length === 1 ? "giornata" : "giornate"}`;
+  mostraToast(!altroPasto
+    ? `${pasto} copiato in ${giornate}`
+    : scelte.length === 1 && scelte[0] === state.attiva
+      ? `${pasto} copiato in ${destinazione}`
+      : `${pasto} copiato in ${destinazione} di ${giornate}`);
 }
 
 // ---------- Spostamento e scambio di un pasto ----------
@@ -4073,6 +4237,7 @@ function collegaEventi() {
   giornataNuovaBtn.addEventListener("click", nuovaGiornata);
 
   giornateSchede.addEventListener("click", (e) => {
+    if (ignoraClicScheda) return;
     const chiudi = e.target.closest(".scheda-chiudi");
     if (chiudi) {
       chiudiGiornata(Number(chiudi.dataset.chiudi));
@@ -4091,7 +4256,32 @@ function collegaEventi() {
     }
   });
 
+  giornateSchede.addEventListener("pointerdown", iniziaTrascinaScheda);
+  giornateSchede.addEventListener("pointermove", muoviTrascinaScheda);
+  giornateSchede.addEventListener("pointerup", fineTrascinaScheda);
+  giornateSchede.addEventListener("pointercancel", annullaTrascinaScheda);
+  // Col dito, a trascinamento avviato la striscia non deve scorrere e la
+  // pressione prolungata non deve aprire il menu del browser.
+  giornateSchede.addEventListener("touchmove", (e) => {
+    if (trascinaScheda && trascinaScheda.attivo) e.preventDefault();
+  }, { passive: false });
+  giornateSchede.addEventListener("contextmenu", (e) => {
+    if (trascinaScheda && e.target.closest(".scheda-apri")) e.preventDefault();
+  });
+
   giornateSchede.addEventListener("keydown", (e) => {
+    // Da tastiera: Ctrl+Maiusc+frecce spostano la scheda che ha il fuoco.
+    const tasto = e.target.closest(".scheda-apri");
+    if (tasto && e.ctrlKey && e.shiftKey && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
+      e.preventDefault();
+      const da = Number(tasto.dataset.indice);
+      const a = da + (e.key === "ArrowLeft" ? -1 : 1);
+      if (a < 0 || a >= state.giornate.length) return;
+      spostaGiornata(da, a);
+      const nuovo = giornateSchede.querySelector(`.scheda-apri[data-indice="${a}"]`);
+      if (nuovo) nuovo.focus();
+      return;
+    }
     const campo = e.target.closest(".scheda-nome-input");
     if (!campo) return;
     if (e.key === "Enter") {
@@ -4264,6 +4454,10 @@ function collegaEventi() {
 
   // Copia di un pasto in altre giornate
   copiaPastoConfermaBtn.addEventListener("click", confermaCopiaPasto);
+  copiaPastoDestinazione.addEventListener("change", () => {
+    renderCopiaPastoElenco(copiaPastoSpuntate());
+    copiaPastoErrore.classList.add("hidden");
+  });
   copiaPastoAnnullaBtn.addEventListener("click", chiudiCopiaPasto);
   copiaPastoOverlay.addEventListener("click", (e) => {
     if (e.target === copiaPastoOverlay) chiudiCopiaPasto();
