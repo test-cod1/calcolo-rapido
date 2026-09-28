@@ -403,7 +403,8 @@ Un valore a **−2 significa «dato non disponibile»**, non zero: è la convenz
 del foglio di partenza. Sono 41 alimenti (per esempio i carboidrati del
 parmigiano). L'app non lo confonde più con uno zero: sulla riga scrive «n.d.» e
 sotto il totale della giornata avverte che il conto è **per difetto**, dicendo
-quale nutriente manca e in quanti alimenti.
+quale nutriente manca e in quanti alimenti. Lo stesso vale sul foglio di lavoro
+stampato, righe, totale e media compresi.
 
 Per sostituire la tabella: si riesporta il foglio, si tolgono le righe di
 categoria, si ripuliscono i nomi dal nome scientifico fra parentesi quadre e si

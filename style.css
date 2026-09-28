@@ -1387,7 +1387,9 @@ button.danger:hover:not(:disabled) { background: var(--danger-hover); }
     padding: 0;
     max-width: none;
   }
-  .no-print, .hero, .card { display: none !important; }
+  /* Il toast è fisso in fondo alla finestra: stampando entro due secondi da
+     un inserimento finiva su ogni pagina del foglio. */
+  .no-print, .hero, .card, .toast { display: none !important; }
   .area-stampa { display: block; }
 
   .stampa-titolo { font-size: 18pt; margin: 0 0 2mm; }
@@ -1408,6 +1410,12 @@ button.danger:hover:not(:disabled) { background: var(--danger-hover); }
     border-bottom: 1px solid #ddd;
   }
   .stampa-tabella th { font-size: 8.5pt; text-transform: uppercase; color: #555; }
+  /* Larghezze fisse per le colonne dei numeri: con quelle automatiche ogni
+     pasto aveva colonne sue e i numeri non stavano in fila da un pasto
+     all'altro. Il nome dell'alimento prende il resto. */
+  .stampa-tabella:not(.stampa-tabella-paziente) { table-layout: fixed; }
+  .stampa-tabella:not(.stampa-tabella-paziente) th:nth-child(2) { width: 17%; }
+  .stampa-tabella:not(.stampa-tabella-paziente) th:nth-child(n+3) { width: 10%; }
   /* Foglio del paziente: due sole colonne, alimento e quantità, con più aria
      fra le righe perché si legge in cucina, non alla scrivania. */
   .stampa-tabella-paziente { font-size: 11.5pt; }

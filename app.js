@@ -433,6 +433,10 @@ const installaChiudiBtn = el("installa-chiudi-btn");
 // ---------- Utilità ----------
 
 function round1(n) { return Math.round(n * 10) / 10; }
+// Un decimale da mostrare, all'italiana: "3,4 g", non "3.4 g". Senza separatore
+// delle migliaia, come i numeri interi delle calorie accanto ("1250 kcal").
+// Solo per il testo: nei campi numerici va il punto, e lì resta round1.
+function dec(n) { return round1(n).toLocaleString("it-IT", { useGrouping: false }); }
 function arrotonda(n) { return Math.round(n); }
 
 function escapeHtml(testo) {
@@ -1169,7 +1173,7 @@ function renderRipartizione() {
   const quadra = Math.abs(somma - 100) < 0.5;
   ripartizioneStato.textContent = quadra
     ? (state.obiettivo > 0 ? "attiva" : "attiva (manca l'obiettivo calorie)")
-    : `somma ${round1(somma)}%`;
+    : `somma ${dec(somma)}%`;
   ripartizioneStato.classList.toggle("ripartizione-stato-errata", !quadra);
 
   ripartizioneCampi.innerHTML = PASTI.map(pasto => {
@@ -1189,7 +1193,7 @@ function renderRipartizione() {
 
   ripartizioneSomma.textContent = quadra
     ? `Somma: 100% ✓`
-    : `Somma: ${round1(somma)}% — deve fare 100%, correggi prima di fidarti degli obiettivi per pasto.`;
+    : `Somma: ${dec(somma)}% — deve fare 100%, correggi prima di fidarti degli obiettivi per pasto.`;
   ripartizioneSomma.classList.toggle("error", !quadra);
 }
 
@@ -1207,11 +1211,11 @@ function aggiornaEtichetteRipartizione() {
   const quadra = Math.abs(somma - 100) < 0.5;
   ripartizioneSomma.textContent = quadra
     ? "Somma: 100% ✓"
-    : `Somma: ${round1(somma)}% — deve fare 100%, correggi prima di fidarti degli obiettivi per pasto.`;
+    : `Somma: ${dec(somma)}% — deve fare 100%, correggi prima di fidarti degli obiettivi per pasto.`;
   ripartizioneSomma.classList.toggle("error", !quadra);
   ripartizioneStato.textContent = quadra
     ? (state.obiettivo > 0 ? "attiva" : "attiva (manca l'obiettivo calorie)")
-    : `somma ${round1(somma)}%`;
+    : `somma ${dec(somma)}%`;
   ripartizioneStato.classList.toggle("ripartizione-stato-errata", !quadra);
 }
 
@@ -1632,16 +1636,16 @@ function selezionaAlimento(chiave) {
     // scritte evita di doversi fidare al buio.
     const peso = (u) => {
       const g = grammiDaMisura(1, u, densita, gCucchiaio);
-      return g ? `1 ${MISURE[u].uno} = ${round1(g)} g` : "";
+      return g ? `1 ${MISURE[u].uno} = ${dec(g)} g` : "";
     };
     const conversione = [
-      densita ? `100 ml = ${round1(grammiDaMisura(100, "ml", densita, gCucchiaio))} g` : "",
+      densita ? `100 ml = ${dec(grammiDaMisura(100, "ml", densita, gCucchiaio))} g` : "",
       peso("cucchiaio"),
       peso("cucchiaino"),
       peso("bicchiere")
     ].filter(Boolean).join(" · ");
     alimentoSceltoPer100.textContent =
-      `per 100 g: ${round1(per100.kcal)} kcal · ${round1(per100.proteine)} P · ${round1(per100.grassi)} G · ${round1(per100.carboidrati)} C` +
+      `per 100 g: ${dec(per100.kcal)} kcal · ${dec(per100.proteine)} P · ${dec(per100.grassi)} G · ${dec(per100.carboidrati)} C` +
       (conversione ? ` — ${conversione}` : "");
     alimentoEliminaBtn.classList.toggle("hidden", !ePersonalizzato(chiave));
     alimentoScelto.classList.remove("hidden");
@@ -1820,15 +1824,15 @@ function aggiornaAnteprima() {
     calcoloCorrente.quantita = round1(valore);
   }
 
-  previewKcal.textContent = v.kcal;
+  previewKcal.textContent = dec(v.kcal);
   // Con i millilitri il peso corrispondente si mostra SEMPRE, anche partendo
   // dal volume: è il numero con cui sono stati fatti i conti.
   previewGrammi.textContent = (unitaCorrente !== "g" || modoCalcolo !== "grammi")
     ? `≈ ${v.grammi} g`
     : "";
-  previewProt.textContent = v.proteine;
-  previewFat.textContent = v.grassi;
-  previewCarb.textContent = v.carboidrati;
+  previewProt.textContent = dec(v.proteine);
+  previewFat.textContent = dec(v.grassi);
+  previewCarb.textContent = dec(v.carboidrati);
   preview.classList.remove("hidden");
   aggiungiBtn.disabled = false;
 }
@@ -2270,17 +2274,21 @@ function aggiungiAlPasto() {
 }
 
 // Percentuali di energia dai tre macronutrienti (4/9/4 kcal per grammo).
+// Percentuali intere che sommano sempre 100 (metodo dei resti più grandi):
+// arrotondate una per una potevano fare 99 o 101, e su un foglio consegnato
+// sembrava un errore di conto. Il punto che manca va alla voce che ha perso
+// di più nell'arrotondamento per difetto.
 function ripartizioneMacro(t) {
-  const kcalProt = t.proteine * 4;
-  const kcalFat = t.grassi * 9;
-  const kcalCarb = t.carboidrati * 4;
-  const somma = kcalProt + kcalFat + kcalCarb;
+  const kcal = [t.proteine * 4, t.grassi * 9, t.carboidrati * 4];
+  const somma = kcal[0] + kcal[1] + kcal[2];
   if (somma <= 0) return { prot: 0, fat: 0, carb: 0 };
-  return {
-    prot: Math.round((kcalProt / somma) * 100),
-    fat: Math.round((kcalFat / somma) * 100),
-    carb: Math.round((kcalCarb / somma) * 100)
-  };
+  const esatte = kcal.map(k => (k / somma) * 100);
+  const intere = esatte.map(Math.floor);
+  let resto = 100 - (intere[0] + intere[1] + intere[2]);
+  [0, 1, 2]
+    .sort((i, j) => (esatte[j] - intere[j]) - (esatte[i] - intere[i]))
+    .forEach(i => { if (resto > 0) { intere[i]++; resto--; } });
+  return { prot: intere[0], fat: intere[1], carb: intere[2] };
 }
 
 // Dettaglio dei macronutrienti di una riga. Sta in una funzione sola perché la
@@ -2295,7 +2303,7 @@ function dettaglioRigaHtml(voce) {
   const assenti = (voce.per100 && voce.per100.assenti) || [];
   const q = (chiave, valore) => assenti.includes(chiave)
     ? `<abbr class="nd" title="Dato non disponibile nella tabella alimenti">n.d.</abbr>`
-    : valore;
+    : dec(valore);
   return `${q("proteine", v.proteine)} P · ${q("grassi", v.grassi)} G · ${q("carboidrati", v.carboidrati)} C${nota}`;
 }
 
@@ -2312,7 +2320,7 @@ function rigaAlimentoHtml(voce, pasto, indice) {
              data-pasto="${escapeHtml(pasto)}" data-indice="${indice}"
              aria-label="Quantità di ${escapeHtml(voce.nome)} in ${MISURE[quantita.unita].molti}">
       <span class="riga-unita">${etichettaMisura(quantita.unita, quantita.valore)}</span>
-      <span class="riga-kcal">${v.kcal} kcal</span>
+      <span class="riga-kcal">${dec(v.kcal)} kcal</span>
       <button type="button" class="riga-sostituisci no-print" data-sostituisci-pasto="${escapeHtml(pasto)}" data-indice="${indice}"
               title="Sostituisci con un alimento equivalente" aria-label="Sostituisci ${escapeHtml(voce.nome)}">⇄</button>
       <button type="button" class="riga-elimina" data-pasto="${escapeHtml(pasto)}" data-indice="${indice}"
@@ -2354,7 +2362,7 @@ function pastoHtml(pasto, kcalGiorno) {
           <button type="button" data-svuota-pasto="${escapeHtml(pasto)}" title="Svuota questo pasto" aria-label="Svuota ${pasto}">🗑</button>
         </div>
       </div>
-      <div class="pasto-macro">${round1(t.proteine)} g proteine · ${round1(t.grassi)} g grassi · ${round1(t.carboidrati)} g carboidrati</div>
+      <div class="pasto-macro">${dec(t.proteine)} g proteine · ${dec(t.grassi)} g grassi · ${dec(t.carboidrati)} g carboidrati</div>
       ${voci.map((voce, i) => rigaAlimentoHtml(voce, pasto, i)).join("")}
     </div>
   `;
@@ -2370,8 +2378,8 @@ function bloccoObiettivoMacro(nome, valore, meta, classeBarra) {
   const sforato = valore > meta;
   return `
     <div class="totali-riga-obiettivo">
-      <span>${nome} <strong>${round1(valore)}</strong> / ${round1(meta)} g</span>
-      <span>${sforato ? `${scarto} g oltre` : `restano ${scarto} g`}</span>
+      <span>${nome} <strong>${dec(valore)}</strong> / ${dec(meta)} g</span>
+      <span>${sforato ? `${dec(scarto)} g oltre` : `restano ${dec(scarto)} g`}</span>
     </div>
     <div class="barra-obiettivo ${classeBarra}"><span style="width:${percentuale}%"></span></div>
   `;
@@ -2404,8 +2412,8 @@ function totaliHtml(t) {
     const raggiunto = t.proteine >= meta;
     bloccoProteine = `
       <div class="totali-riga-obiettivo">
-        <span>Proteine <strong>${round1(t.proteine)}</strong> / ${round1(meta)} g</span>
-        <span class="${raggiunto ? "obiettivo-raggiunto" : ""}">${raggiunto ? `obiettivo raggiunto (+${scarto} g)` : `mancano ${scarto} g`}</span>
+        <span>Proteine <strong>${dec(t.proteine)}</strong> / ${dec(meta)} g</span>
+        <span class="${raggiunto ? "obiettivo-raggiunto" : ""}">${raggiunto ? `obiettivo raggiunto (+${dec(scarto)} g)` : `mancano ${dec(scarto)} g`}</span>
       </div>
       <div class="barra-obiettivo barra-proteine"><span style="width:${percentuale}%"></span></div>
     `;
@@ -2465,9 +2473,9 @@ function totaliHtml(t) {
         <i class="m-prot" style="width:${macro.prot}%"></i><i class="m-fat" style="width:${macro.fat}%"></i><i class="m-carb" style="width:${macro.carb}%"></i>
       </div>
       <div class="macro-legenda">
-        <span><i class="punto p-prot"></i>Proteine <b>${round1(t.proteine)} g</b> (${macro.prot}%)</span>
-        <span><i class="punto p-fat"></i>Grassi <b>${round1(t.grassi)} g</b> (${macro.fat}%)</span>
-        <span><i class="punto p-carb"></i>Carboidrati <b>${round1(t.carboidrati)} g</b> (${macro.carb}%)</span>
+        <span><i class="punto p-prot"></i>Proteine <b>${dec(t.proteine)} g</b> (${macro.prot}%)</span>
+        <span><i class="punto p-fat"></i>Grassi <b>${dec(t.grassi)} g</b> (${macro.fat}%)</span>
+        <span><i class="punto p-carb"></i>Carboidrati <b>${dec(t.carboidrati)} g</b> (${macro.carb}%)</span>
       </div>
       ${avvisoAlcol}
       ${avvisoAssenti}
@@ -2491,7 +2499,7 @@ function renderBarraTotale(t) {
   if (state.obiettivoProteine > 0) {
     const scarto = round1(state.obiettivoProteine - t.proteine);
     residuoProt = scarto > 0
-      ? `<span class="bt-residuo bt-residuo-prot">${scarto} g prot.</span>`
+      ? `<span class="bt-residuo bt-residuo-prot">${dec(scarto)} g prot.</span>`
       : `<span class="bt-residuo bt-residuo-prot obiettivo-raggiunto">prot. ✓</span>`;
   }
   // Grassi e carboidrati: solo il residuo, con l'iniziale del macronutriente.
@@ -2501,8 +2509,8 @@ function renderBarraTotale(t) {
     if (!(meta > 0)) return "";
     const scarto = round1(meta - valore);
     return scarto >= 0
-      ? `<span class="bt-residuo ${classe}">${scarto} g ${sigla}</span>`
-      : `<span class="bt-residuo ${classe} sforato">+${Math.abs(scarto)} g ${sigla}</span>`;
+      ? `<span class="bt-residuo ${classe}">${dec(scarto)} g ${sigla}</span>`
+      : `<span class="bt-residuo ${classe} sforato">+${dec(Math.abs(scarto))} g ${sigla}</span>`;
   };
   const residuoFat = residuoMacro(state.obiettivoGrassi, t.grassi, "gr.", "bt-residuo-fat");
   const residuoCarb = residuoMacro(state.obiettivoCarboidrati, t.carboidrati, "carb.", "bt-residuo-carb");
@@ -2517,7 +2525,7 @@ function renderBarraTotale(t) {
   barraTotale.innerHTML = `
     ${nomeGiornata}
     <span class="bt-kcal">${arrotonda(t.kcal)} kcal</span>
-    <span class="bt-macro">${round1(t.proteine)} P · ${round1(t.grassi)} G · ${round1(t.carboidrati)} C</span>
+    <span class="bt-macro">${dec(t.proteine)} P · ${dec(t.grassi)} G · ${dec(t.carboidrati)} C</span>
     ${residuo}
     ${residuoProt}
     ${residuoFat}
@@ -2613,7 +2621,7 @@ function aggiornaCalcoliUI() {
     blocco.querySelector(".pasto-kcal").innerHTML =
       `${arrotonda(tp.kcal)} kcal <span class="pasto-quota">(${quota}%)</span>${scartoPastoHtml(pasto, tp.kcal)}`;
     blocco.querySelector(".pasto-macro").textContent =
-      `${round1(tp.proteine)} g proteine · ${round1(tp.grassi)} g grassi · ${round1(tp.carboidrati)} g carboidrati`;
+      `${dec(tp.proteine)} g proteine · ${dec(tp.grassi)} g grassi · ${dec(tp.carboidrati)} g carboidrati`;
   });
 
   giornataContenuto.querySelectorAll(".riga-alimento").forEach(riga => {
@@ -2622,7 +2630,7 @@ function aggiornaCalcoliUI() {
     const v = calcolaVoce(voce.per100, voce.grammi);
     const quantita = quantitaVoce(voce);
     riga.querySelector(".riga-dettaglio").innerHTML = dettaglioRigaHtml(voce);
-    riga.querySelector(".riga-kcal").textContent = `${v.kcal} kcal`;
+    riga.querySelector(".riga-kcal").textContent = `${dec(v.kcal)} kcal`;
     // Anche il singolare/plurale: scrivendo 2 dove c'era 1, "cucchiaio" deve
     // diventare "cucchiai" subito, non alla conferma.
     riga.querySelector(".riga-unita").textContent = etichettaMisura(quantita.unita, quantita.valore);
@@ -3073,7 +3081,7 @@ function apriSostituzione(pasto, indice) {
   const candidati = candidatiSostituzione(chiave, v.kcal, v, voce.per100);
 
   sostituzioneInCorso = { pasto, indice };
-  sostituisciTitolo.textContent = `Al posto di ${voce.nome} (${testoQuantitaVoce(voce)}, ${v.kcal} kcal)`;
+  sostituisciTitolo.textContent = `Al posto di ${voce.nome} (${testoQuantitaVoce(voce)}, ${dec(v.kcal)} kcal)`;
 
   if (!candidati.length) {
     const categoria = categoriaDi.get(chiave);
@@ -3409,8 +3417,8 @@ function testoPasto(pasto, pasti) {
 function rigaMacroTesto(t) {
   const macro = ripartizioneMacro(t);
   const conMeta = (valore, meta) => meta > 0
-    ? `${round1(valore)}/${round1(meta)} g`
-    : `${round1(valore)} g`;
+    ? `${dec(valore)}/${dec(meta)} g`
+    : `${dec(valore)} g`;
   return `Proteine ${conMeta(t.proteine, state.obiettivoProteine)} (${macro.prot}%)` +
     ` · Grassi ${conMeta(t.grassi, state.obiettivoGrassi)} (${macro.fat}%)` +
     ` · Carboidrati ${conMeta(t.carboidrati, state.obiettivoCarboidrati)} (${macro.carb}%)`;
@@ -3565,9 +3573,9 @@ function stampa(ambito, perPaziente) {
 function intestazioneStampa(titolo) {
   const obiettivi = [
     state.obiettivo > 0 ? `${arrotonda(state.obiettivo)} kcal` : "",
-    state.obiettivoProteine > 0 ? `${round1(state.obiettivoProteine)} g di proteine` : "",
-    state.obiettivoGrassi > 0 ? `${round1(state.obiettivoGrassi)} g di grassi` : "",
-    state.obiettivoCarboidrati > 0 ? `${round1(state.obiettivoCarboidrati)} g di carboidrati` : ""
+    state.obiettivoProteine > 0 ? `${dec(state.obiettivoProteine)} g di proteine` : "",
+    state.obiettivoGrassi > 0 ? `${dec(state.obiettivoGrassi)} g di grassi` : "",
+    state.obiettivoCarboidrati > 0 ? `${dec(state.obiettivoCarboidrati)} g di carboidrati` : ""
   ].filter(Boolean).join(", ");
   const obiettivo = obiettivi ? ` · Obiettivo: ${obiettivi}` : "";
   // Con più diete in archivio il foglio stampato deve dire di quale si tratta.
@@ -3617,6 +3625,21 @@ function bloccoPazienteGiornata(giornata, conNome) {
     </div>`;
 }
 
+// Avviso "per difetto" per il foglio stampato: come sotto il totale a schermo,
+// dice quale nutriente manca e in quanti alimenti. Senza, sulla carta il
+// totale sembrava esatto.
+function avvisoAssentiStampa(voci) {
+  const assenti = datiAssenti(voci);
+  if (!assenti.size) return "";
+  const parti = Array.from(assenti.entries()).map(([k, nomi]) =>
+    `${ETICHETTE_MACRO[k]} (${nomi.size} ${nomi.size === 1 ? "alimento" : "alimenti"})`);
+  return `<div class="dettaglio">Totale per difetto: la tabella non riporta ${parti.join(" · ")}.</div>`;
+}
+
+function vociDi(pasti) {
+  return PASTI.flatMap(p => pasti[p] || []);
+}
+
 // Blocco stampabile di una giornata: i pasti con i loro alimenti e il totale.
 function bloccoStampaGiornata(giornata, conNome) {
   const t = totaliDi(giornata.pasti);
@@ -3627,13 +3650,17 @@ function bloccoStampaGiornata(giornata, conNome) {
     const tp = totaliVoci(voci);
     const righe = voci.map(voce => {
       const v = calcolaVoce(voce.per100, voce.grammi);
+      // "n.d." come sulla riga a schermo: uno zero sulla carta dichiarerebbe
+      // un dato misurato che la tabella non ha.
+      const assenti = (voce.per100 && voce.per100.assenti) || [];
+      const q = chiave => assenti.includes(chiave) ? "n.d." : dec(v[chiave]);
       return `<tr>
         <td>${escapeHtml(voce.nome)}${voce.nota ? ` <em>(${escapeHtml(voce.nota)})</em>` : ""}</td>
         <td class="num">${testoQuantitaVoce(voce)}</td>
-        <td class="num">${v.kcal}</td>
-        <td class="num">${v.proteine}</td>
-        <td class="num">${v.grassi}</td>
-        <td class="num">${v.carboidrati}</td>
+        <td class="num">${dec(v.kcal)}</td>
+        <td class="num">${q("proteine")}</td>
+        <td class="num">${q("grassi")}</td>
+        <td class="num">${q("carboidrati")}</td>
       </tr>`;
     }).join("");
     // Con la ripartizione attiva il foglio di lavoro riporta anche l'obiettivo
@@ -3659,7 +3686,8 @@ function bloccoStampaGiornata(giornata, conNome) {
       ${pasti}
       <div class="stampa-totali">
         Totale giornata: ${arrotonda(t.kcal)} kcal
-        <div class="dettaglio">Proteine ${round1(t.proteine)} g (${macro.prot}%) · Grassi ${round1(t.grassi)} g (${macro.fat}%) · Carboidrati ${round1(t.carboidrati)} g (${macro.carb}%)</div>
+        <div class="dettaglio">Proteine ${dec(t.proteine)} g (${macro.prot}%) · Grassi ${dec(t.grassi)} g (${macro.fat}%) · Carboidrati ${dec(t.carboidrati)} g (${macro.carb}%)</div>
+        ${avvisoAssentiStampa(vociDi(giornata.pasti))}
       </div>
     </div>`;
 }
@@ -3683,7 +3711,7 @@ function costruisciAreaStampa() {
 
   const conNome = tutte || state.giornate.length > 1;
   const titolo = tutte
-    ? `Piano alimentare — ${giornate.length} giornate`
+    ? `Piano alimentare — ${giornate.length} ${giornate.length === 1 ? "giornata" : "giornate"}`
     : `Giornata alimentare${conNome ? " — " + escapeHtml(giornataCorrente().nome) : ""}`;
 
   if (stampaPerPaziente) {
@@ -3704,7 +3732,8 @@ function costruisciAreaStampa() {
       riepilogo = `
         <div class="stampa-riepilogo">
           Media giornaliera su ${r.numero} giornate: ${arrotonda(r.media.kcal)} kcal
-          <div class="dettaglio">Proteine ${round1(r.media.proteine)} g (${macro.prot}%) · Grassi ${round1(r.media.grassi)} g (${macro.fat}%) · Carboidrati ${round1(r.media.carboidrati)} g (${macro.carb}%)</div>
+          <div class="dettaglio">Proteine ${dec(r.media.proteine)} g (${macro.prot}%) · Grassi ${dec(r.media.grassi)} g (${macro.fat}%) · Carboidrati ${dec(r.media.carboidrati)} g (${macro.carb}%)</div>
+          ${avvisoAssentiStampa(giornate.flatMap(g => vociDi(g.pasti))).replace("Totale per difetto", "Media per difetto")}
         </div>`;
     }
   }
