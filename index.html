@@ -165,8 +165,18 @@
   <div id="avviso-salvataggio" class="avviso-salvataggio hidden no-print" role="alert">
     <strong>Attenzione: questo browser non sta salvando.</strong>
     Quello che scrivi resta solo finché la pagina è aperta e andrà perso alla ricarica.
-    Succede in navigazione privata o se la memoria del sito è bloccata.
+    Succede quando la memoria del sito è piena o bloccata.
     Usa «Salva su file» in fondo alla pagina per non perdere il lavoro.
+  </div>
+
+  <!-- I dati salvati c'erano ma non si lasciavano rileggere: l'app riparte da
+       vuoto, e senza questo avviso il primo salvataggio li avrebbe cancellati
+       senza che nessuno lo sapesse. -->
+  <div id="avviso-illeggibile" class="avviso-salvataggio avviso-con-bottone hidden no-print" role="alert">
+    <span><strong>I dati salvati in questo browser non si sono potuti leggere.</strong>
+    L'app è ripartita da vuoto. Il contenuto originale è stato messo da parte: scaricalo
+    e conservalo, poi ricarica l'ultima copia con «Carica da file».</span>
+    <button type="button" id="scarica-illeggibile-btn" class="danger">Scarica il contenuto</button>
   </div>
 
   <!-- Una scheda rimasta aperta continua a eseguire il codice di prima: il
@@ -423,6 +433,7 @@
     </div>
     <!-- Fuori dal flusso ma non display:none: alcuni browser ignorano il clic
          programmato su un campo file nascosto del tutto. -->
+    <p id="ultima-copia" class="ultima-copia hidden"></p>
     <input type="file" id="importa-file" accept="application/json,.json" class="campo-file" aria-label="File di salvataggio da caricare">
     <p class="hint hint-privacy">Contengono dati di salute (peso, età, sesso) e, se li scrivi nel nome della dieta, anche dati identificativi. Meglio un codice o le iniziali che nome e cognome per esteso.</p>
   </section>

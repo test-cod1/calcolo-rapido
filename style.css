@@ -604,6 +604,19 @@ button.danger:hover:not(:disabled) { background: var(--danger-hover); }
   font-size: 0.88rem;
   line-height: 1.5;
 }
+/* Stessi colori, con un bottone a lato: i dati illeggibili da scaricare. */
+.avviso-con-bottone {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.avviso-con-bottone button {
+  flex: none;
+  padding: 8px 16px;
+  font-size: 0.88rem;
+}
 
 /* ---------- Avviso: c'è una versione nuova ---------- */
 /* Non è un errore come quello del salvataggio, è un invito: prende i colori
@@ -633,6 +646,17 @@ button.danger:hover:not(:disabled) { background: var(--danger-hover); }
 /* ---------- I tuoi dati ---------- */
 
 .card-dati .riga-bottoni { margin-top: 12px; }
+.ultima-copia {
+  margin: 10px 0 0;
+  font-size: 0.85rem;
+  color: var(--text-muted);
+}
+/* Nessuna copia, o una copia vecchia di una settimana con delle diete dentro:
+   è il momento in cui una pulizia del browser costerebbe il lavoro. */
+.ultima-copia.in-ritardo {
+  color: var(--danger-text);
+  font-weight: 600;
+}
 /* Il campo file resta nel flusso ma invisibile: nascosto con display:none
    alcuni browser ignorano il clic programmato. */
 .campo-file {

@@ -21,9 +21,35 @@ un file JSON — diete, profili e alimenti creati — e lo ricarica. Quel file �
 l'unica copia di sicurezza esistente; l'importazione **sostituisce** il
 contenuto del browser, non lo fonde.
 
-Se il browser rifiuta di salvare (navigazione privata, memoria del sito
-bloccata) compare un avviso fisso in cima alla pagina: prima si continuava a
-lavorare credendo che tutto fosse al sicuro.
+Se il browser rifiuta di salvare (memoria del sito piena o bloccata) compare
+un avviso fisso in cima alla pagina: prima si continuava a lavorare credendo
+che tutto fosse al sicuro. Vale per le diete e per gli alimenti creati, ognuno
+con il suo esito: il messaggio «Alimento salvato» compare solo se lo è davvero.
+
+La **navigazione privata non fa scattare quell'avviso**: lì il salvataggio
+riesce, e i dati spariscono alla chiusura della finestra. Allo stesso modo
+Safari cancella da sé la memoria di un sito non installato dopo sette giorni
+senza visite. Nessuno dei due casi si riconosce dalla pagina, perciò:
+
+- all'avvio l'app chiede al browser la **memoria persistente**
+  (`navigator.storage.persist()`), che il browser può concedere o no;
+- nel riquadro «I tuoi dati» c'è scritto **quando è stata fatta l'ultima copia
+  su file** da questo browser, in rosso se non ce n'è nessuna o se è vecchia di
+  una settimana e nell'archivio c'è qualcosa.
+
+Se i dati salvati ci sono ma **non si lasciano rileggere** (una scrittura
+troncata, un'altra pagina dello stesso dominio), l'app riparte vuota ma prima
+mette da parte il contenuto originale in `rapido-illeggibile:<chiave>` e lo
+dice con un avviso che permette di scaricarlo. Prima ripartiva vuota in
+silenzio, e il primo salvataggio lo cancellava per sempre.
+
+**Più schede aperte** sulla stessa app condividono la stessa memoria. Ogni
+salvataggio riscrive l'archivio intero, e una scheda rimasta indietro
+riscriveva la sua copia sopra il lavoro dell'altra. Ora, quando una scheda
+salva, le altre rileggono tutto e si ridisegnano («Aggiornato con le modifiche
+fatte in un'altra scheda»), restando sulla dieta che stavano mostrando. Nel
+farlo chiudono i dialoghi aperti e azzerano la pila di «Annulla», che
+contiene copie di prima.
 
 Nel salvataggio finiscono **dati di salute** — sesso, età, peso, altezza — e,
 se li si scrive nel nome della dieta, anche dati identificativi del paziente.
@@ -305,10 +331,16 @@ Due cose che rendono la faccenda affidabile:
   andrà a finire la modifica.
 - **«Annulla» esteso all'archivio.** La pila di annullamento lavora sulle
   giornate della dieta aperta, ma questa è l'unica operazione che può toccare
-  diete chiuse: per lei lo scatto comprende l'intero archivio e gli alimenti
-  creati, così le voci e l'alimento tornano indietro insieme. Con il solo
-  scatto delle giornate «Annulla» avrebbe riportato indietro una dieta
-  lasciando le altre riscritte, che è peggio del non poter annullare.
+  diete chiuse: per lei lo scatto comprende le giornate di tutte le diete e
+  l'alimento corretto, così le voci e l'alimento tornano indietro insieme. Con
+  il solo scatto delle giornate «Annulla» avrebbe riportato indietro una dieta
+  lasciando le altre riscritte, che è peggio del non poter annullare. Lo
+  scatto non comprende altro: gli alimenti creati dopo, nome e colore della
+  dieta, obiettivi e profilo restano come sono.
+
+Con un dialogo aperto Ctrl+Z non annulla niente: il dialogo lavora su una voce
+presa prima, e annullare sotto di lui gli farebbe sostituire o spostare quella
+sbagliata.
 
 Salvare dal riquadro di inserimento un alimento con il nome di uno che è già
 tuo passa dalla stessa domanda: è una correzione, non una creazione.

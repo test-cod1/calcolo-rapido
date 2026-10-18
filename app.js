@@ -15,6 +15,11 @@ const PASTI = ["Colazione", "Spuntino mattina", "Pranzo", "Merenda", "Cena", "Sp
 const TEMA_KEY = "calcolo-rapido-tema";
 const CHIAVE_STATO = "rapido-stato-v1";
 const CHIAVE_ALIMENTI = "rapido-alimenti-v1";
+// Quando una delle due chiavi qui sopra non si lascia rileggere, il contenuto
+// grezzo viene messo da parte qui (con il nome della chiave in coda) prima che
+// il primo salvataggio lo sovrascriva.
+const PREFISSO_ILLEGGIBILE = "rapido-illeggibile:";
+const CHIAVE_ULTIMA_COPIA = "rapido-ultima-copia";
 
 // Fattori di attività (PAL) per passare dal metabolismo basale al fabbisogno.
 const FATTORI_ATTIVITA = {
@@ -423,6 +428,9 @@ const installaOverlay = el("installa-overlay");
 const avvisoSalvataggio = el("avviso-salvataggio");
 const avvisoAggiornamento = el("avviso-aggiornamento");
 const aggiornaBtn = el("aggiorna-btn");
+const avvisoIlleggibile = el("avviso-illeggibile");
+const scaricaIlleggibileBtn = el("scarica-illeggibile-btn");
+const ultimaCopiaTesto = el("ultima-copia");
 const esportaBtn = el("esporta-btn");
 const importaBtn = el("importa-btn");
 const importaFile = el("importa-file");
@@ -529,34 +537,74 @@ function inizializzaTema() {
 
 // ---------- Persistenza locale ----------
 
-// Se il salvataggio non riesce (navigazione privata, spazio esaurito, memoria
+// Se il salvataggio non riesce (spazio esaurito, memoria
 // del sito bloccata) l'app NON deve fare finta di niente: chi sta scrivendo una
 // dieta continuerebbe a lavorare convinto che sia al sicuro, e la perderebbe
 // tutta alla prima ricarica. L'avviso resta a video finché il salvataggio non
 // torna a funzionare.
-let salvataggioNonRiuscito = false;
+// Le chiavi sono due, diete e alimenti creati, e ognuna ha il suo esito: con
+// un solo segnale, un salvataggio delle diete riuscito dopo uno degli alimenti
+// fallito toglieva l'avviso mentre l'alimento non era scritto da nessuna parte.
+const salvataggiNonRiusciti = new Set();
+
+function scriviChiave(chiave, valore) {
+  let riuscito = true;
+  try {
+    localStorage.setItem(chiave, JSON.stringify(valore));
+  } catch (e) {
+    riuscito = false;
+  }
+  const prima = salvataggiNonRiusciti.size;
+  if (riuscito) salvataggiNonRiusciti.delete(chiave); else salvataggiNonRiusciti.add(chiave);
+  if (salvataggiNonRiusciti.size !== prima) mostraAvvisoSalvataggio();
+  aggiornaUltimaCopia();
+  return riuscito;
+}
 
 function salvaStato() {
-  try {
-    localStorage.setItem(CHIAVE_STATO, JSON.stringify(archivio));
-    if (salvataggioNonRiuscito) {
-      salvataggioNonRiuscito = false;
-      mostraAvvisoSalvataggio();
-    }
-  } catch (e) {
-    salvataggioNonRiuscito = true;
-    mostraAvvisoSalvataggio();
-  }
+  return scriviChiave(CHIAVE_STATO, archivio);
 }
 
 function mostraAvvisoSalvataggio() {
-  avvisoSalvataggio.classList.toggle("hidden", !salvataggioNonRiuscito);
+  avvisoSalvataggio.classList.toggle("hidden", !salvataggiNonRiusciti.size);
+}
+
+// Legge una chiave e la decodifica. Un contenuto che c'è ma non si decodifica
+// (scrittura troncata, un'estensione, un'altra pagina dello stesso dominio)
+// prima diventava "niente": l'app ripartiva vuota e il primo salvataggio
+// cancellava per sempre una stringa forse ancora recuperabile a mano. Ora il
+// contenuto grezzo viene messo da parte e la pagina lo dice.
+const contenutiIlleggibili = new Map();
+
+function leggiChiave(chiave, accettabile) {
+  let grezzo = null;
+  try { grezzo = localStorage.getItem(chiave); } catch (e) { return null; }
+  if (grezzo === null) return null;
+  let valore;
+  try { valore = JSON.parse(grezzo); } catch (e) { valore = undefined; }
+  if (valore !== undefined && accettabile(valore)) return valore;
+  mettiDaParteIlleggibile(chiave, grezzo);
+  return null;
+}
+
+function mettiDaParteIlleggibile(chiave, grezzo) {
+  contenutiIlleggibili.set(chiave, grezzo);
+  // La copia nel browser è la seconda rete: se la memoria è piena non ci sta,
+  // ma finché la pagina è aperta resta il bottone per scaricarla su file.
+  try { localStorage.setItem(PREFISSO_ILLEGGIBILE + chiave, grezzo); } catch (e) { /* resta lo scaricamento */ }
+  if (avvisoIlleggibile) avvisoIlleggibile.classList.remove("hidden");
+}
+
+function scaricaIlleggibile() {
+  const parti = Array.from(contenutiIlleggibili.entries())
+    .map(([chiave, grezzo]) => `--- ${chiave} ---\n${grezzo}\n`);
+  if (!parti.length) return;
+  scaricaTesto(parti.join("\n"), "calcolo-rapido-illeggibile.txt", "text/plain");
 }
 
 function caricaStato() {
-  let salvato = null;
-  try { salvato = JSON.parse(localStorage.getItem(CHIAVE_STATO) || "null"); } catch (e) { salvato = null; }
-  if (!salvato || typeof salvato !== "object") return;
+  const salvato = leggiChiave(CHIAVE_STATO, v => v !== null && typeof v === "object" && !Array.isArray(v));
+  if (!salvato) return;
 
   const nuovo = creaArchivioVuoto();
   if (Array.isArray(salvato.diete) && salvato.diete.length) {
@@ -656,7 +704,7 @@ function leggiPasti(salvati) {
 }
 
 function salvaAlimentiCustom() {
-  try { localStorage.setItem(CHIAVE_ALIMENTI, JSON.stringify(alimentiCustom)); } catch (e) { /* ignora */ }
+  return scriviChiave(CHIAVE_ALIMENTI, alimentiCustom);
 }
 
 // Gli alimenti salvati passano dalla stessa normalizzazione del caricamento da
@@ -696,12 +744,7 @@ function leggiAlimentiCustom(dati) {
 }
 
 function caricaAlimentiCustom() {
-  let grezzi = [];
-  try {
-    grezzi = JSON.parse(localStorage.getItem(CHIAVE_ALIMENTI) || "[]");
-  } catch (e) {
-    grezzi = [];
-  }
+  const grezzi = leggiChiave(CHIAVE_ALIMENTI, Array.isArray) || [];
   alimentiCustom = leggiAlimentiCustom(grezzi);
   // Gli id assegnati adesso vanno riscritti subito. Se restassero solo in
   // memoria, al prossimo avvio ne nascerebbero di nuovi e le voci timbrate con
@@ -1016,21 +1059,83 @@ function esportaDati() {
     archivio,
     alimentiCustom
   };
+  if (scaricaTesto(JSON.stringify(contenuto, null, 1), nomeFileSalvataggio(), "application/json")) {
+    segnaUltimaCopia();
+    mostraToast("Salvato: conserva il file, è la tua copia di sicurezza");
+  } else {
+    mostraToast("Salvataggio su file non riuscito");
+  }
+}
+
+function scaricaTesto(testo, nomeFile, tipo) {
   try {
-    const blob = new Blob([JSON.stringify(contenuto, null, 1)], { type: "application/json" });
+    const blob = new Blob([testo], { type: tipo });
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = url;
-    a.download = nomeFileSalvataggio();
+    a.download = nomeFile;
     document.body.appendChild(a);
     a.click();
     a.remove();
     // Rilasciato dopo il clic: revocarlo subito annullerebbe il download.
     setTimeout(() => URL.revokeObjectURL(url), 10000);
-    mostraToast("Salvato: conserva il file, è la tua copia di sicurezza");
+    return true;
   } catch (e) {
-    mostraToast("Salvataggio su file non riuscito");
+    return false;
   }
+}
+
+// ---------- Promemoria della copia su file ----------
+// La navigazione privata NON fa fallire il salvataggio: setItem riesce, e i
+// dati spariscono alla chiusura della finestra senza che nessuno l'abbia detto.
+// Safari, poi, cancella da sé la memoria di un sito non installato dopo sette
+// giorni senza visite. Nessuno dei due casi si può riconoscere da qui, quindi
+// l'unica difesa vera è il file: la pagina dice da quanto non se ne fa uno.
+const GIORNI_PROMEMORIA_COPIA = 7;
+
+function segnaUltimaCopia() {
+  try { localStorage.setItem(CHIAVE_ULTIMA_COPIA, String(Date.now())); } catch (e) { /* ignora */ }
+  aggiornaUltimaCopia();
+}
+
+function archivioHaContenuto() {
+  return archivio.diete.some(d => d.giornate.some(g => PASTI.some(p => g.pasti[p].length)))
+    || alimentiCustom.length > 0;
+}
+
+function aggiornaUltimaCopia() {
+  if (!ultimaCopiaTesto) return;
+  let quando = NaN;
+  try { quando = Number(localStorage.getItem(CHIAVE_ULTIMA_COPIA)); } catch (e) { /* resta NaN */ }
+  const contenuto = archivioHaContenuto();
+  let testo;
+  let inRitardo;
+  if (!(quando > 0)) {
+    testo = contenuto ? "Da questo browser non hai ancora salvato nessuna copia su file." : "";
+    inRitardo = contenuto;
+  } else {
+    // Giorni di calendario, non blocchi di 24 ore: una copia di ieri sera è
+    // "ieri" anche se sono passate dieci ore.
+    const oggi = new Date(); oggi.setHours(0, 0, 0, 0);
+    const giorno = new Date(quando); giorno.setHours(0, 0, 0, 0);
+    const giorni = Math.round((oggi - giorno) / 86400000);
+    const fa = giorni <= 0 ? "oggi" : giorni === 1 ? "ieri" : `${giorni} giorni fa`;
+    testo = `Ultima copia su file: ${fa}.`;
+    inRitardo = contenuto && giorni >= GIORNI_PROMEMORIA_COPIA;
+  }
+  ultimaCopiaTesto.textContent = testo;
+  ultimaCopiaTesto.classList.toggle("hidden", !testo);
+  ultimaCopiaTesto.classList.toggle("in-ritardo", inRitardo);
+}
+
+// Chiede al browser di non cancellare da sé la memoria del sito quando lo
+// spazio scarseggia (e, su Safari, dopo i sette giorni). Il browser può dire di
+// no, e a volte lo concede solo all'app installata: non c'è niente da mostrare
+// in nessuno dei due casi, il promemoria qui sopra resta comunque.
+function chiediMemoriaPersistente() {
+  try {
+    if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+  } catch (e) { /* non disponibile */ }
 }
 
 async function importaDati(file) {
@@ -1084,6 +1189,7 @@ async function importaDati(file) {
   salvaAlimentiCustom();
   ricostruisciElenco();
 
+  segnaUltimaCopia();
   apriDietaCorrente(`Caricate ${quante} ${quante === 1 ? "dieta" : "diete"} dal file`);
 }
 
@@ -1093,7 +1199,14 @@ function cancellaTutto() {
   try {
     localStorage.removeItem(CHIAVE_STATO);
     localStorage.removeItem(CHIAVE_ALIMENTI);
+    localStorage.removeItem(CHIAVE_ULTIMA_COPIA);
+    // Anche le copie di un contenuto illeggibile: sono gli stessi dati di
+    // salute, e «Cancella tutto» promette di non lasciarne traccia.
+    localStorage.removeItem(PREFISSO_ILLEGGIBILE + CHIAVE_STATO);
+    localStorage.removeItem(PREFISSO_ILLEGGIBILE + CHIAVE_ALIMENTI);
   } catch (e) { /* niente da fare: si riparte comunque da vuoto */ }
+  contenutiIlleggibili.clear();
+  if (avvisoIlleggibile) avvisoIlleggibile.classList.add("hidden");
   archivio = creaArchivioVuoto();
   alimentiCustom = [];
   ricostruisciElenco();
@@ -1915,10 +2028,14 @@ function salvaNuovoAlimento() {
   }
 
   alimentiCustom.push(alimento);
-  salvaAlimentiCustom();
+  const salvato = salvaAlimentiCustom();
   ricostruisciElenco();
   dopo();
-  mostraToast("Alimento salvato su questo dispositivo");
+  // Senza memoria l'alimento c'è solo finché la pagina resta aperta: dire
+  // "salvato" sarebbe la bugia da cui l'avviso in cima vuole proteggere.
+  mostraToast(salvato
+    ? "Alimento salvato su questo dispositivo"
+    : "Alimento aggiunto, ma il browser non l'ha salvato: andrà perso alla ricarica");
 }
 
 // Tutte le voci, in tutte le diete, nate da un certo alimento personalizzato.
@@ -1947,7 +2064,7 @@ function vociDelAlimento(alimento) {
 // l'alimento devono tornare indietro insieme, o si resterebbe con una dieta
 // riportata ai valori vecchi e un alimento già corretto.
 function scriviAlimento(originale, nuovo, usi, propaga) {
-  registraAnnullaArchivio(`modifica di ${formattaNome(originale.nome)}`);
+  registraAnnullaArchivio(`modifica di ${formattaNome(originale.nome)}`, originale);
   if (propaga) {
     const per100 = normalizzaPer100(nuovo);
     const nome = formattaNome(nuovo.nome);
@@ -2169,15 +2286,23 @@ function registraAnnulla(descrizione) {
   aggiornaBottoneAnnulla();
 }
 
-// Uno scatto dell'INTERO archivio, diete chiuse comprese, più gli alimenti
-// creati. Serve alla correzione di un alimento personalizzato, che è l'unica
-// operazione capace di toccare diete diverse da quella aperta: con il solo
-// scatto delle giornate «Annulla» ne riporterebbe indietro una e lascerebbe le
-// altre riscritte, che è peggio del non poter annullare affatto.
-function registraAnnullaArchivio(descrizione) {
+// Uno scatto delle giornate di TUTTE le diete, chiuse comprese, più l'alimento
+// che si sta correggendo. Serve alla correzione di un alimento personalizzato,
+// che è l'unica operazione capace di toccare diete diverse da quella aperta:
+// con il solo scatto delle giornate «Annulla» ne riporterebbe indietro una e
+// lascerebbe le altre riscritte, che è peggio del non poter annullare affatto.
+//
+// Solo le giornate e solo quell'alimento, però. Prima lo scatto era l'archivio
+// intero con tutti gli alimenti, e annullando si portava via anche quello che
+// la pila non registra: gli alimenti creati dopo, il nome e il colore della
+// dieta, obiettivi e profilo.
+function registraAnnullaArchivio(descrizione, alimentoPrima) {
   pilaAnnulla.push({
-    archivio: JSON.parse(JSON.stringify(archivio)),
-    alimentiCustom: JSON.parse(JSON.stringify(alimentiCustom)),
+    giornatePerDieta: archivio.diete.map(d => ({
+      giornate: JSON.parse(JSON.stringify(d.giornate)),
+      attiva: d.attiva
+    })),
+    alimentoPrima: JSON.parse(JSON.stringify(alimentoPrima)),
     descrizione
   });
   if (pilaAnnulla.length > MAX_ANNULLA) pilaAnnulla.shift();
@@ -2201,10 +2326,20 @@ function aggiornaBottoneAnnulla() {
 function annullaUltima() {
   const ultima = pilaAnnulla.pop();
   if (!ultima) return;
-  if (ultima.archivio) {
-    archivio = ultima.archivio;
-    state = archivio.diete[archivio.dietaAttiva];
-    alimentiCustom = ultima.alimentiCustom;
+  if (ultima.giornatePerDieta) {
+    // Le diete sono le stesse dello scatto: crearne, eliminarne o cambiarle
+    // azzera la pila, quindi un indice indica ancora la stessa dieta.
+    ultima.giornatePerDieta.forEach((copia, i) => {
+      const dieta = archivio.diete[i];
+      if (!dieta) return;
+      dieta.giornate = copia.giornate;
+      dieta.attiva = Math.min(copia.attiva, dieta.giornate.length - 1);
+    });
+    // L'alimento torna com'era al suo posto nell'elenco; se nel frattempo è
+    // stato eliminato, torna in fondo. Gli altri alimenti non si toccano.
+    const prima = ultima.alimentoPrima;
+    const posto = alimentiCustom.findIndex(a => a.id === prima.id);
+    if (posto >= 0) alimentiCustom[posto] = prima; else alimentiCustom.push(prima);
     salvaAlimentiCustom();
     ricostruisciElenco();
   } else {
@@ -4523,6 +4658,8 @@ function collegaEventi() {
     importaFile.value = "";
   });
   cancellaTuttoBtn.addEventListener("click", cancellaTutto);
+  if (scaricaIlleggibileBtn) scaricaIlleggibileBtn.addEventListener("click", scaricaIlleggibile);
+  window.addEventListener("storage", riallineaDaAltraScheda);
 
   // Sostituzioni equivalenti
   sostituisciAnnullaBtn.addEventListener("click", chiudiSostituzione);
@@ -4550,6 +4687,9 @@ function collegaEventi() {
   // sotto gli occhi di chi sta guardando tutt'altro.
   document.addEventListener("keydown", (e) => {
     if (!(e.ctrlKey || e.metaKey) || e.shiftKey || e.key.toLowerCase() !== "z") return;
+    // Con un dialogo aperto no: lavora su una voce e un indice presi prima, e
+    // annullare sotto di lui gli farebbe sostituire o spostare la voce sbagliata.
+    if (dialogoAperto()) return;
     const attivo = document.activeElement;
     const inRinomina = attivo && attivo.dataset && attivo.dataset.rinomina !== undefined;
     const staScrivendo = attivo && ["INPUT", "TEXTAREA"].includes(attivo.tagName) && attivo.value !== "";
@@ -4575,8 +4715,63 @@ function ripristinaCampiProfilo() {
   obiettivoCarbInput.value = state.obiettivoCarboidrati || "";
 }
 
+// ---------- Più schede aperte ----------
+// Ogni salvataggio riscrive l'archivio intero. Con due schede aperte, quella
+// rimasta indietro riscriveva la sua copia sopra il lavoro dell'altra: una
+// dieta creata in A spariva al primo peso corretto in B, senza un avviso.
+// Il browser avvisa le ALTRE schede quando una chiave cambia; qui si rilegge
+// tutto e si ridisegna, così la scheda non ha mai una copia vecchia da
+// scrivere. Siccome ogni modifica viene salvata subito, non c'è niente di non
+// salvato che il riallineamento possa portare via.
+function riallineaDaAltraScheda(e) {
+  if (e.storageArea !== localStorage) return;
+  // e.key null = l'altra scheda ha svuotato tutta la memoria del sito.
+  if (e.key !== null && e.key !== CHIAVE_STATO && e.key !== CHIAVE_ALIMENTI) {
+    if (e.key === CHIAVE_ULTIMA_COPIA) aggiornaUltimaCopia();
+    return;
+  }
+  // Si resta sulla dieta che si stava guardando, se esiste ancora: la dieta
+  // aperta è scritta nell'archivio, ma è una scelta di questa scheda.
+  const dietaDiQuestaScheda = archivio.dietaAttiva;
+  const giornataDiQuestaScheda = state.attiva;
+
+  caricaAlimentiCustom();
+  archivio = creaArchivioVuoto();
+  state = archivio.diete[0];
+  caricaStato();
+  if (dietaDiQuestaScheda < archivio.diete.length) {
+    archivio.dietaAttiva = dietaDiQuestaScheda;
+    state = archivio.diete[dietaDiQuestaScheda];
+    if (giornataDiQuestaScheda < state.giornate.length) state.attiva = giornataDiQuestaScheda;
+  }
+  ricostruisciElenco();
+
+  // Un dialogo aperto lavora su voci e indici della copia di prima, e la pila
+  // di «Annulla» pure: ripristinarla rimetterebbe sopra il lavoro dell'altra
+  // scheda proprio la copia vecchia che si vuole evitare.
+  chiudiSostituzione();
+  chiudiCopiaPasto();
+  chiudiSpostaPasto();
+  chiudiModificaAlimento();
+  // apriDietaCorrente salva: qui non deve, o rimbalzerebbe all'altra scheda
+  // un archivio che è già il suo. Il resto (pila azzerata, ridisegno) serve.
+  pilaAnnulla = [];
+  modificaPesoInCorso = null;
+  chiudiRinominaDieta();
+  chiudiRinominaScheda();
+  chiudiMenuAzioni();
+  applicaColoreDieta();
+  ripristinaCampiProfilo();
+  renderFabbisogno();
+  renderGiornata();
+  aggiornaBottoneAnnulla();
+  aggiornaUltimaCopia();
+  mostraToast("Aggiornato con le modifiche fatte in un'altra scheda");
+}
+
 async function inizializza() {
   inizializzaTema();
+  chiediMemoriaPersistente();
   caricaAlimentiCustom();
   caricaStato();
   applicaColoreDieta();
@@ -4588,6 +4783,7 @@ async function inizializza() {
   renderGiornata();
   aggiornaBottoneAnnulla();
   renderFabbisogno();
+  aggiornaUltimaCopia();
   await caricaAlimenti();
 }
 

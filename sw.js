@@ -17,7 +17,7 @@
 // spazio delle cache è per dominio, non per cartella. Senza questo prefisso la
 // pulizia all'activate porterebbe via anche le cache degli altri siti.
 const CACHE_PREFISSO = "calcolo-rapido-";
-const CACHE_VERSION = "v1";
+const CACHE_VERSION = "v2";
 const SHELL_CACHE = `${CACHE_PREFISSO}${CACHE_VERSION}`;
 
 // File indispensabili: precaricati all'installazione (addAll è atomico, se ne
