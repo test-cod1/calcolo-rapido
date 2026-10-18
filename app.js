@@ -1673,11 +1673,20 @@ function ricostruisciElenco() {
   // Indice pre-normalizzato: la ricerca scorre 900+ voci a ogni tasto premuto,
   // rifare ogni volta formattaNome + normalizzaTesto renderebbe la digitazione
   // a scatti. L'ordine è quello alfabetico di foodNames e viene conservato.
-  indiceRicerca = foodNames.map(k => ({
-    chiave: k,
-    testoChiave: normalizzaTesto(k),
-    testoMostrato: normalizzaTesto(formattaNome(k))
-  }));
+  indiceRicerca = foodNames.map(k => {
+    const testoChiave = normalizzaTesto(k);
+    const testoMostrato = normalizzaTesto(formattaNome(k));
+    const parole = Array.from(new Set([...paroleDi(testoMostrato), ...paroleDi(testoChiave)]));
+    return {
+      chiave: k,
+      testoChiave,
+      testoMostrato,
+      parole: parole.map(p => ({ p, radice: radice(p) })),
+      // Per l'ordine fra i risultati trovati a parole: a parità, prima i nomi
+      // più corti ("Mela" prima di "Succo di mela, non zuccherato").
+      quanteParole: paroleDi(testoMostrato).length
+    };
+  });
   recuperaAssenti();
 }
 
@@ -1808,19 +1817,97 @@ function rangoCorrispondenza(voce, q) {
   return null;
 }
 
+// ---------- Ricerca a parole ----------
+// La frase intera come sottostringa (i ranghi qui sopra) trova quello che si
+// scrive come sta nella tabella, e nient'altro: «mele» non trovava la MELA,
+// «petto di pollo» non trovava POLLO, PETTO, «olio oliva» non trovava l'OLIO DI
+// OLIVA, «zuchine» non trovava niente — e un elenco vuoto fa credere che
+// l'alimento manchi. Quando la frase non basta si cerca parola per parola, in
+// qualunque ordine, e ogni parola cercata deve trovare la sua nel nome:
+//
+// 3 — come inizio di parola, o con la stessa radice (singolare e plurale:
+//     mela/mele, arancia/arance, pomodoro/pomodori);
+// 4 — con una lettera sbagliata, mancante o in più («zuchine»,
+//     «parmiggiano»), solo per le parole di almeno cinque lettere: sotto
+//     quella lunghezza una lettera cambia parola.
+//
+// Le parole vuote («di», «al», «con»…) non si cercano: «petto di pollo» e
+// «pollo petto» sono la stessa ricerca.
+
+const PAROLE_VUOTE = new Set(["di", "del", "dello", "della", "dei", "degli", "delle",
+  "e", "ed", "o", "a", "al", "allo", "alla", "ai", "agli", "alle", "da", "dal", "dalla",
+  "in", "nel", "nella", "con", "per", "su", "il", "lo", "la", "i", "gli", "le", "un", "uno", "una"]);
+const MIN_LETTERE_REFUSO = 5;
+
+function paroleDi(testo) {
+  return testo.split(/[^a-z0-9]+/).filter(p => p && !PAROLE_VUOTE.has(p));
+}
+
+// Radice leggera: via le vocali in fondo, ma solo da parole di almeno quattro
+// lettere e lasciandone almeno tre. Non è un'analisi grammaticale: basta a far
+// coincidere singolare e plurale, che in italiano cambiano quasi sempre e solo
+// lì (mel-a/mel-e, aranc-ia/aranc-e, fagiol-o/fagiol-i).
+function radice(parola) {
+  if (parola.length < 4) return parola;
+  const senza = parola.replace(/[aeiou]+$/, "");
+  return senza.length >= 3 ? senza : parola;
+}
+
+// Vero se a e b differiscono al massimo di una lettera: una sostituita, una
+// in più o una in meno.
+function alPiuUnaLettera(a, b) {
+  if (a === b) return true;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  let i = 0;
+  while (i < a.length && i < b.length && a[i] === b[i]) i++;
+  if (a.length === b.length) return a.slice(i + 1) === b.slice(i + 1);
+  return a.length > b.length ? a.slice(i + 1) === b.slice(i) : a.slice(i) === b.slice(i + 1);
+}
+
+// Quanto bene una parola cercata trova posto nel nome: 3 (inizio o radice),
+// 4 (refuso), null (nessuna parola del nome le somiglia).
+function rangoParola(cercata, radiceCercata, parole) {
+  if (parole.some(({ p, radice: r }) => p.startsWith(cercata) || r === radiceCercata)) return 3;
+  if (cercata.length < MIN_LETTERE_REFUSO) return null;
+  // Contro la parola intera e contro il suo inizio: chi sta ancora scrivendo
+  // «parmiggi» va confrontato con «parmigia», non con «parmigiano».
+  const somiglia = parole.some(({ p }) =>
+    alPiuUnaLettera(cercata, p) || alPiuUnaLettera(cercata, p.slice(0, cercata.length)));
+  return somiglia ? 4 : null;
+}
+
+function rangoAParole(voce, cercate) {
+  let peggiore = 0;
+  for (const { p, radice: r } of cercate) {
+    const rango = rangoParola(p, r, voce.parole);
+    if (rango === null) return null;
+    peggiore = Math.max(peggiore, rango);
+  }
+  return peggiore;
+}
+
 function aggiornaSuggerimenti() {
   const q = normalizzaTesto(foodInput.value.trim());
   if (!q) {
     nascondiSuggerimenti();
     return;
   }
+  const cercate = paroleDi(q).map(p => ({ p, radice: radice(p) }));
+  const primaCercata = cercate.length ? cercate[0].p : null;
   const trovati = [];
   indiceRicerca.forEach(voce => {
-    const rango = rangoCorrispondenza(voce, q);
-    if (rango !== null) trovati.push({ rango, chiave: voce.chiave });
+    let rango = rangoCorrispondenza(voce, q);
+    if (rango === null && cercate.length) rango = rangoAParole(voce, cercate);
+    if (rango === null) return;
+    // Fra i trovati a parole, prima chi ha la prima parola cercata in testa al
+    // nome («pollo petto» → i Pollo prima del Wurstel di pollo), poi i nomi
+    // più corti.
+    const inTesta = rango >= 3 && primaCercata && voce.parole.length
+      && (voce.parole[0].p.startsWith(primaCercata) || voce.parole[0].radice === radice(primaCercata)) ? 0 : 1;
+    trovati.push({ rango, inTesta, lunghezza: rango >= 3 ? voce.quanteParole : 0, chiave: voce.chiave });
   });
-  // sort() è stabile: a parità di rango resta l'ordine alfabetico di partenza.
-  trovati.sort((a, b) => a.rango - b.rango);
+  // sort() è stabile: a parità resta l'ordine alfabetico di partenza.
+  trovati.sort((a, b) => (a.rango - b.rango) || (a.inTesta - b.inTesta) || (a.lunghezza - b.lunghezza));
   mostraSuggerimenti(trovati.slice(0, 50).map(t => t.chiave));
 }
 

@@ -118,6 +118,29 @@ Lo stato salvato in `localStorage` (`rapido-stato-v1`) è ora
 `{ diete: [...], dietaAttiva }`. Uno stato scritto da una versione precedente
 viene letto lo stesso e diventa la prima dieta.
 
+## Cercare un alimento
+
+Accenti e maiuscole non contano («caffè» trova «Caffe'»). Prima vengono i nomi
+che **contengono la frase così come è scritta**: all'inizio del nome, poi
+all'inizio di una parola, poi in mezzo. Era l'unica ricerca, e trovava solo
+quello che si scrive esattamente come nella tabella: «mele» non trovava la
+MELA, «petto di pollo» non trovava POLLO, PETTO, «zuchine» non trovava niente.
+E un elenco vuoto fa credere che l'alimento manchi.
+
+Quando la frase non basta si cerca **parola per parola, in qualunque ordine**,
+e ogni parola deve trovare la sua nel nome:
+
+- come inizio di parola o con la **stessa radice**, per cui singolare e plurale
+  si equivalgono (mela/mele, arancia/arance, pomodoro/pomodori);
+- solo dopo, con **una lettera sbagliata, mancante o in più** («zuchine»,
+  «parmiggiano»), e solo per parole di almeno cinque lettere: sotto quella
+  lunghezza una lettera cambia parola.
+
+Le parole vuote come «di», «al», «con» non si cercano: «petto di pollo» e
+«pollo petto» danno lo stesso risultato. Fra i risultati trovati a parole
+vengono prima i nomi che cominciano con la prima parola cercata, poi i più
+corti.
+
 ## Obiettivi giornalieri
 
 Si possono scrivere a mano (calorie, proteine, grassi, carboidrati) oppure farli
