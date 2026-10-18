@@ -3,10 +3,12 @@
 //
 // Strategia: network-first su tutti i file dell'app. Online si vede sempre la
 // versione appena pubblicata; la copia in cache serve solo quando la rete non
-// c'è. Per questo NON serve cambiare CACHE_VERSION a ogni pubblicazione: la
-// versione va cambiata solo per svuotare le cache vecchie (per esempio se si
-// rinomina un file), oppure per far comparire subito l'avviso di aggiornamento
-// nelle schede già aperte.
+// c'è (o quando la rete non risponde entro qualche secondo). Per questo NON
+// serve cambiare CACHE_VERSION a ogni pubblicazione: la versione va cambiata
+// solo per svuotare le cache vecchie, per esempio se si rinomina un file.
+// L'avviso di versione nuova nelle schede già aperte non dipende più da qui:
+// la pagina stessa controlla se i suoi file sono cambiati (app.js,
+// controllaVersioneNuova).
 //
 // Vengono gestite solo le richieste GET di questa stessa origine: qui non ci
 // sono chiamate di rete verso l'esterno né dati da proteggere, perché tutto
@@ -71,26 +73,63 @@ self.addEventListener("fetch", evento => {
   const url = new URL(req.url);
   if (url.origin !== self.location.origin) return;
 
+  // "no-cache": si chiede sempre al server se il file è cambiato. Senza, valeva
+  // la cache HTTP del browser (GitHub Pages dà dieci minuti), e appena dopo una
+  // pubblicazione si poteva ricevere l'index.html nuovo con l'app.js vecchio.
+  let salvataggio = Promise.resolve();
+  const rete = fetch(req, { cache: "no-cache" }).then(risposta => {
+    // Solo le risposte valide finiscono in cache: una pagina di errore
+    // salvata al posto dell'app la renderebbe inutilizzabile offline.
+    if (risposta && risposta.ok && risposta.type === "basic") {
+      // La copia si fa subito, prima che la pagina cominci a leggere il corpo.
+      const copia = risposta.clone();
+      salvataggio = caches.open(SHELL_CACHE).then(cache => cache.put(req, copia));
+    }
+    return risposta;
+  });
+  // Il worker resta vivo finché la copia non è scritta: prima la scrittura non
+  // era attesa da nessuno, e il browser poteva fermarlo a metà.
+  evento.waitUntil(rete.then(() => salvataggio).catch(() => {}));
+
   evento.respondWith((async () => {
-    const cache = await caches.open(SHELL_CACHE);
     try {
-      const risposta = await fetch(req);
-      // Solo le risposte valide finiscono in cache: una pagina di errore
-      // salvata al posto dell'app la renderebbe inutilizzabile offline.
-      if (risposta && risposta.ok && risposta.type === "basic") {
-        cache.put(req, risposta.clone());
-      }
-      return risposta;
+      return await entro(rete, ATTESA_RETE_MS);
     } catch (e) {
-      const salvata = await cache.match(req);
+      const salvata = await copiaInCache(req);
       if (salvata) return salvata;
-      // Navigazione senza rete e senza copia esatta (per esempio un indirizzo
-      // con parametri): si serve comunque la pagina dell'app.
-      if (req.mode === "navigate") {
-        const home = (await cache.match("index.html")) || (await cache.match("./"));
-        if (home) return home;
-      }
+      // Rete lenta e nessuna copia: non resta che aspettarla.
+      if (e === TROPPO_LENTA) return rete;
       throw e;
     }
   })());
 });
+
+// Una rete che c'è ma non risponde (il wifi di un ospedale con la pagina di
+// accesso, un segnale debole) teneva la pagina bianca fino al timeout del
+// browser, che può durare decine di secondi: proprio quando la copia offline
+// serviva. Oltre questa attesa si usa la copia, se c'è; la risposta della rete,
+// quando arriva, aggiorna comunque la cache per la volta successiva.
+const ATTESA_RETE_MS = 4000;
+const TROPPO_LENTA = new Error("rete troppo lenta");
+
+function entro(promessa, ms) {
+  return new Promise((risolvi, rifiuta) => {
+    const timer = setTimeout(() => rifiuta(TROPPO_LENTA), ms);
+    promessa.then(
+      v => { clearTimeout(timer); risolvi(v); },
+      e => { clearTimeout(timer); rifiuta(e); }
+    );
+  });
+}
+
+async function copiaInCache(req) {
+  const cache = await caches.open(SHELL_CACHE);
+  const salvata = await cache.match(req);
+  if (salvata) return salvata;
+  // Navigazione senza copia esatta (per esempio un indirizzo con parametri):
+  // si serve comunque la pagina dell'app.
+  if (req.mode === "navigate") {
+    return (await cache.match("index.html")) || (await cache.match("./")) || null;
+  }
+  return null;
+}

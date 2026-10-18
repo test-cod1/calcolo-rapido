@@ -114,6 +114,26 @@ const MAX_NOTA = 80;
 // barre della giornata e finisce sul foglio stampato.
 const MAX_GRAMMI_VOCE = 5000;
 
+// Tetti per tutto quello che arriva da un salvataggio (file o browser). Nessun
+// modulo dell'app li raggiunge: servono contro un file manomesso o rotto, dove
+// "1e999" diventa Infinity e i totali «NaN», o contro un file da decine di
+// mega che blocca la pagina e poi non entra nemmeno nella memoria del sito.
+// I macronutrienti vanno oltre 100 g perché la tabella esprime i carboidrati
+// come monosaccaridi: lo zucchero ne ha 104,5.
+const MAX_KCAL_100 = 1000;
+const MAX_MACRO_100 = 120;
+const MAX_VOCI_PASTO = 200;
+const MAX_ALIMENTI_CUSTOM = 2000;
+const MAX_OBIETTIVO_KCAL = 10000;
+const MAX_OBIETTIVO_MACRO = 2000;
+const MAX_BYTE_FILE = 5 * 1024 * 1024;
+
+// Un numero finito e non negativo, al massimo `tetto`; tutto il resto è 0.
+function numeroLimitato(v, tetto) {
+  const n = Number(v);
+  return Number.isFinite(n) && n > 0 ? Math.min(n, tetto) : 0;
+}
+
 // Nel foglio di partenza -2 vuol dire "dato non disponibile", non zero. Sono 41
 // alimenti (per esempio i carboidrati del parmigiano). Trattarlo come zero fa
 // sottostimare il totale della giornata senza che nessuno se ne accorga:
@@ -643,10 +663,10 @@ function leggiDieta(salvata, nomePredefinito, colorePredefinito) {
 
   dieta.nome = String(salvata.nome || nomePredefinito).slice(0, 40);
   dieta.colore = coloreValido(salvata.colore || colorePredefinito);
-  dieta.obiettivo = Number(salvata.obiettivo) > 0 ? Number(salvata.obiettivo) : null;
-  dieta.obiettivoProteine = Number(salvata.obiettivoProteine) > 0 ? Number(salvata.obiettivoProteine) : null;
-  dieta.obiettivoGrassi = Number(salvata.obiettivoGrassi) > 0 ? Number(salvata.obiettivoGrassi) : null;
-  dieta.obiettivoCarboidrati = Number(salvata.obiettivoCarboidrati) > 0 ? Number(salvata.obiettivoCarboidrati) : null;
+  dieta.obiettivo = numeroLimitato(salvata.obiettivo, MAX_OBIETTIVO_KCAL) || null;
+  dieta.obiettivoProteine = numeroLimitato(salvata.obiettivoProteine, MAX_OBIETTIVO_MACRO) || null;
+  dieta.obiettivoGrassi = numeroLimitato(salvata.obiettivoGrassi, MAX_OBIETTIVO_MACRO) || null;
+  dieta.obiettivoCarboidrati = numeroLimitato(salvata.obiettivoCarboidrati, MAX_OBIETTIVO_MACRO) || null;
   dieta.ripartizione = leggiRipartizione(salvata.ripartizione);
   dieta.profilo = leggiProfilo(salvata.profilo);
 
@@ -704,9 +724,9 @@ function leggiPasti(salvati) {
   const pasti = creaPastiVuoti();
   PASTI.forEach(pasto => {
     const voci = salvati && Array.isArray(salvati[pasto]) ? salvati[pasto] : [];
-    pasti[pasto] = voci.filter(v => v && v.per100).map(v => ({
+    pasti[pasto] = voci.filter(v => v && v.per100).slice(0, MAX_VOCI_PASTO).map(v => ({
       nome: String(v.nome || "Alimento").slice(0, MAX_NOME_ALIMENTO),
-      grammi: Math.max(0, Number(v.grammi) || 0),
+      grammi: numeroLimitato(v.grammi, MAX_GRAMMI_VOCE),
       nota: String(v.nota || "").slice(0, MAX_NOTA),
       per100: normalizzaPer100(v.per100),
       // Il legame con l'alimento personalizzato deve sopravvivere alla
@@ -742,7 +762,7 @@ function nuovoIdAlimento() {
 
 function leggiAlimentiCustom(dati) {
   if (!Array.isArray(dati)) return [];
-  return dati
+  return dati.slice(0, MAX_ALIMENTI_CUSTOM)
     // Un nome che non è un testo non è recuperabile: convertirlo darebbe
     // "[object Object]" in mezzo agli alimenti, che è peggio del silenzio.
     .filter(a => a && (typeof a.nome === "string" || typeof a.nome === "number") && String(a.nome).trim() !== "")
@@ -1063,8 +1083,8 @@ function leggiUnita(v) {
   const unita = v.unita;
   if (!unita || unita === "g" || !MISURE[unita]) return base;
   // "ml" era l'unico campo delle prime versioni: vale come quantità.
-  const quantita = Number(v.quantita) > 0 ? Number(v.quantita)
-    : (unita === "ml" && Number(v.ml) > 0 ? Number(v.ml) : 0);
+  const quantita = numeroLimitato(v.quantita, MAX_GRAMMI_VOCE)
+    || (unita === "ml" ? numeroLimitato(v.ml, MAX_GRAMMI_VOCE) : 0);
   if (!(grammiDaMisura(1, unita, densita, gCucchiaio) > 0)) return base;
   return quantita > 0 ? { ...base, unita, quantita } : { ...base, unita };
 }
@@ -1170,6 +1190,13 @@ function chiediMemoriaPersistente() {
 
 async function importaDati(file) {
   if (!file) return;
+  // Prima di leggerlo: un salvataggio vero pesa qualche decina di kilobyte, e
+  // un file da decine di mega bloccherebbe la pagina senza poi entrare nella
+  // memoria del sito.
+  if (file.size > MAX_BYTE_FILE) {
+    mostraToast("File troppo grande per essere un salvataggio di Calcolo rapido");
+    return;
+  }
   let dati = null;
   try {
     dati = JSON.parse(await file.text());
@@ -1181,11 +1208,29 @@ async function importaDati(file) {
     mostraToast("File non riconosciuto: non è un salvataggio di Calcolo rapido");
     return;
   }
-  const quante = Array.isArray(dati.archivio.diete) ? dati.archivio.diete.length : 0;
-  if (!quante) {
+  const nelFile = Array.isArray(dati.archivio.diete) ? dati.archivio.diete.length : 0;
+  if (!nelFile) {
     mostraToast("Il file non contiene nessuna dieta");
     return;
   }
+  // Il numero da dire è quello che verrà caricato, non quello del file: prima
+  // un file con 15 diete chiedeva «Caricare 15 diete?», ne teneva 10 e
+  // annunciava «Caricate 15 diete».
+  const quante = Math.min(nelFile, MAX_DIETE);
+  const tagli = [];
+  if (nelFile > MAX_DIETE) tagli.push(`il file contiene ${nelFile} diete, ne verranno caricate le prime ${MAX_DIETE}`);
+  const giornateTagliate = dati.archivio.diete.slice(0, MAX_DIETE)
+    .filter(d => d && Array.isArray(d.giornate) && d.giornate.length > MAX_GIORNATE).length;
+  if (giornateTagliate) {
+    tagli.push(`${giornateTagliate === 1 ? "una dieta ha" : `${giornateTagliate} diete hanno`} più di ${MAX_GIORNATE} giornate: si terranno le prime ${MAX_GIORNATE}`);
+  }
+  // Un file scritto da una versione più nuova può avere campi che questa non
+  // conosce e che andrebbero persi in silenzio: si dice, e si lascia decidere.
+  const versione = Number(dati.versione);
+  if (versione > VERSIONE_FILE) {
+    tagli.push("il file viene da una versione più recente dell'app: quello che questa versione non conosce andrà perso (conviene ricaricare la pagina per aggiornarla)");
+  }
+  const avvisoTagli = tagli.length ? `\n\nAttenzione: ${tagli.join("; ")}.` : "";
   // Anche gli alimenti creati vengono sostituiti, quindi la domanda li conta:
   // il caso da dire ad alta voce è il file che non ne porta nessuno, dove la
   // sostituzione è una cancellazione e basta.
@@ -1198,7 +1243,7 @@ async function importaDati(file) {
   // Sostituzione, non fusione: unire due archivi darebbe diete duplicate senza
   // che si capisca quali. Chi vuole tenere anche il lavoro di adesso lo salva
   // prima su file.
-  if (!confirm(`Caricare ${quante} ${quante === 1 ? "dieta" : "diete"} dal file?\n\nQuesto SOSTITUISCE tutto il lavoro presente in questo browser. Se ti serve, salvalo prima su file.${avvisoAlimenti}`)) return;
+  if (!confirm(`Caricare ${quante} ${quante === 1 ? "dieta" : "diete"} dal file?\n\nQuesto SOSTITUISCE tutto il lavoro presente in questo browser. Se ti serve, salvalo prima su file.${avvisoAlimenti}${avvisoTagli}`)) return;
 
   // Le stesse funzioni che rileggono il localStorage: un file manomesso o
   // scritto da un'altra versione non deve poter rompere il rendering.
@@ -1387,10 +1432,10 @@ function spegniRipartizione() {
 // tutti i totali della giornata.
 function normalizzaPer100(a) {
   const per100 = {
-    kcal: Math.max(0, Number(a.kcal) || 0),
-    proteine: Math.max(0, Number(a.proteine) || 0),
-    grassi: Math.max(0, Number(a.grassi) || 0),
-    carboidrati: Math.max(0, Number(a.carboidrati) || 0)
+    kcal: numeroLimitato(a.kcal, MAX_KCAL_100),
+    proteine: numeroLimitato(a.proteine, MAX_MACRO_100),
+    grassi: numeroLimitato(a.grassi, MAX_MACRO_100),
+    carboidrati: numeroLimitato(a.carboidrati, MAX_MACRO_100)
   };
   // I valori a -2 restano zero nei conti (non c'è altro da sommare), ma li
   // annotiamo: "0 g di carboidrati" e "carboidrati non misurati" sono due cose
@@ -4326,6 +4371,55 @@ function inizializzaInstallazione() {
 function mostraAvvisoAggiornamento() {
   if (!avvisoAggiornamento) return;
   avvisoAggiornamento.classList.remove("hidden");
+  versioneNuovaVista = true;
+}
+
+// Il browser segnala un aggiornamento solo quando cambia sw.js, quindi
+// l'avviso dipendeva dal ricordarsi di cambiare CACHE_VERSION a ogni
+// pubblicazione. Qui la pagina chiede al server l'impronta (ETag) dei propri
+// file e la confronta con quella che aveva all'apertura: se cambia, c'è una
+// versione nuova, chiunque l'abbia pubblicata e comunque sia stata pubblicata.
+// Una richiesta HEAD a file, niente corpo da scaricare; il service worker non
+// la tocca (gestisce solo le GET). Senza rete il controllo tace.
+const FILE_DELLA_VERSIONE = ["index.html", "app.js", "style.css"];
+const INTERVALLO_CONTROLLO_MS = 30 * 60 * 1000;
+const PAUSA_MINIMA_CONTROLLO_MS = 5 * 60 * 1000;
+let impronteAllApertura = null;
+let ultimoControlloVersione = 0;
+let versioneNuovaVista = false;
+
+async function improntaFile() {
+  const impronte = await Promise.all(FILE_DELLA_VERSIONE.map(async file => {
+    const risposta = await fetch(file, { method: "HEAD", cache: "no-store" });
+    if (!risposta.ok) throw new Error(`${file}: ${risposta.status}`);
+    return risposta.headers.get("ETag") || risposta.headers.get("Last-Modified") || "";
+  }));
+  // Un server che non dà né ETag né data non permette il confronto.
+  return impronte.some(Boolean) ? impronte.join("|") : null;
+}
+
+async function controllaVersioneNuova() {
+  if (versioneNuovaVista || !navigator.onLine) return;
+  const adesso = Date.now();
+  if (adesso - ultimoControlloVersione < PAUSA_MINIMA_CONTROLLO_MS) return;
+  ultimoControlloVersione = adesso;
+  let impronta;
+  try { impronta = await improntaFile(); } catch (e) { return; }
+  if (!impronta) return;
+  if (impronteAllApertura === null) { impronteAllApertura = impronta; return; }
+  if (impronta !== impronteAllApertura) mostraAvvisoAggiornamento();
+}
+
+function avviaControlloVersione() {
+  // La prima impronta si prende subito, ed è quella dei file appena caricati:
+  // la pagina è stata servita "no-cache", quindi sono gli stessi del server.
+  ultimoControlloVersione = 0;
+  controllaVersioneNuova();
+  setInterval(controllaVersioneNuova, INTERVALLO_CONTROLLO_MS);
+  // Chi torna sulla scheda dopo ore è il caso tipico: si controlla allora.
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") controllaVersioneNuova();
+  });
 }
 
 function registraServiceWorker() {
@@ -4957,6 +5051,7 @@ async function inizializza() {
   collegaEventi();
   inizializzaInstallazione();
   registraServiceWorker();
+  avviaControlloVersione();
   renderGiornata();
   aggiornaBottoneAnnulla();
   renderFabbisogno();

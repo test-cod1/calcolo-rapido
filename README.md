@@ -55,7 +55,26 @@ Nel salvataggio finiscono **dati di salute** — sesso, età, peso, altezza — 
 se li si scrive nel nome della dieta, anche dati identificativi del paziente.
 Sono in chiaro, come in qualunque `localStorage`. Meglio un codice o le
 iniziali che nome e cognome per esteso. «Cancella tutto» rimuove ogni traccia
-dal dispositivo.
+dal dispositivo. Il **file di salvataggio** contiene gli stessi dati, in
+chiaro anche lui: va conservato come una cartella clinica, non lasciato nei
+download o allegato a una mail qualunque.
+
+### Il dominio è condiviso
+
+Su GitHub Pages l'app sta in `test-cod1.github.io/calcolo-rapido/`, e
+**`test-cod1.github.io` è lo stesso dominio di tutti i progetti pubblicati da
+quell'account**. Il `localStorage` è per dominio, non per cartella: qualunque
+altra pagina pubblicata lì — o un difetto di sicurezza in una di esse — può
+leggere e scrivere `rapido-stato-v1`, cioè i dati di salute. Oggi il rischio
+dipende solo da cosa altro si pubblica su quell'account.
+
+Il rimedio vero è un **dominio tutto suo**: un dominio o sottodominio
+personalizzato su GitHub Pages, oppure Cloudflare Pages (che in più
+applicherebbe `_headers`, e con quello anche `frame-ancestors`). Va scelto e
+configurato da chi gestisce l'account; dopo il trasloco vanno aggiornati
+`id`, `start_url` e `scope` del `manifest.json` (vedi «Pubblicazione»), e i
+dati nel browser vanno portati con «Salva su file» e «Carica da file», perché
+il nuovo dominio parte con una memoria vuota.
 
 ## Sicurezza
 
@@ -505,6 +524,13 @@ scarterebbe tutto ciò che inizia con `_`.
 toccare `CACHE_VERSION`. Quella costante va cambiata solo se si rinominano file
 e si vogliono svuotare le cache vecchie.
 
+Le richieste del service worker scavalcano la cache HTTP del browser
+(`cache: "no-cache"`): GitHub Pages dà dieci minuti di validità, e subito dopo
+una pubblicazione si poteva ricevere l'`index.html` nuovo con l'`app.js`
+vecchio. Se la rete non risponde entro **4 secondi** si usa la copia offline,
+quando c'è: una rete che c'è ma non risponde (un wifi con la pagina di accesso)
+teneva la pagina bianca per decine di secondi.
+
 «Sempre l'ultima versione» vale però **al caricamento della pagina**. Una scheda
 rimasta aperta — ed è il caso normale, una dieta si scrive in mezza giornata —
 continua a eseguire il codice di prima. Per quelle c'è un riquadro in cima alla
@@ -512,8 +538,11 @@ pagina, «È disponibile una versione aggiornata», con un pulsante che ricarica
 la pagina non si ricarica mai da sé, perché farlo sotto le mani di chi sta
 scrivendo sarebbe peggio del problema.
 
-Quel riquadro compare quando il browser si accorge che **`sw.js` è cambiato**,
-non `app.js`: è il file del service worker quello che viene confrontato. Perciò,
-se si vuole che le schede aperte vedano l'avviso, **`CACHE_VERSION` va cambiata
-a ogni pubblicazione che conti** — ed è il secondo motivo per toccarla, oltre a
-quello dei file rinominati.
+Quel riquadro compariva solo quando il browser si accorgeva che **`sw.js`** era
+cambiato, quindi bisognava ricordarsi di cambiare `CACHE_VERSION` a ogni
+pubblicazione. Ora la pagina controlla da sé: all'apertura chiede al server
+l'impronta (`ETag`) di `index.html`, `app.js` e `style.css` con una richiesta
+`HEAD`, e la richiede ogni mezz'ora e ogni volta che si torna sulla scheda (al
+più una volta ogni cinque minuti). Se è cambiata compare l'avviso. Senza rete
+il controllo tace. Cambiare `sw.js` continua a far comparire l'avviso, come
+prima.
