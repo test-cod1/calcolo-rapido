@@ -59,11 +59,23 @@ const G_PER_KG_SUGGERITO = {
 // Intervalli ammessi per i dati della persona, gli stessi dichiarati nei campi
 // di index.html. Gli attributi min/max del markup non impediscono di battere un
 // numero fuori scala — segnalano e basta — quindi il calcolo se li ricontrolla.
+//
+// Mifflin-St Jeor è una formula per adulti: sotto i 18 anni sbaglia, e con i
+// limiti di prima (1 anno, 1 kg, 50 cm) arrivava a un metabolismo basale
+// negativo. L'età minima ha un messaggio suo, perché lì il problema non è un
+// refuso ma il metodo.
+const ETA_ADULTA = 18;
 const LIMITI_PROFILO = {
-  eta:     { nome: "età",     min: 1,  max: 120, unita: "anni" },
-  peso:    { nome: "peso",    min: 1,  max: 400, unita: "kg" },
-  altezza: { nome: "altezza", min: 50, max: 250, unita: "cm" }
+  eta:     { nome: "età",     min: ETA_ADULTA, max: 100, unita: "anni" },
+  peso:    { nome: "peso",    min: 25,  max: 300, unita: "kg" },
+  altezza: { nome: "altezza", min: 120, max: 230, unita: "cm" }
 };
+
+// "70,5" e "70.5" sono lo stesso peso: i campi del profilo possono arrivare
+// anche da un file, dove la virgola passa e Number() la rifiuta.
+function numeroProfilo(v) {
+  return Number(String(v == null ? "" : v).trim().replace(",", "."));
+}
 
 const PERC_GRASSI_SUGGERITA = 27;
 const PERC_GRASSI_MIN = 15;
@@ -281,6 +293,8 @@ let categoriaDi = new Map();    // chiave -> categoria (solo per gli alimenti di
 let idCustomDi = new Map();     // chiave -> id dell'alimento personalizzato
 let densitaDi = new Map();      // chiave -> g/ml, solo per i liquidi
 let cucchiaioDi = new Map();    // chiave -> grammi in un cucchiaio raso
+let codiceDi = new Map();       // chiave -> codice della tabella, solo se non coperta da un tuo alimento
+let tabellaPerNome = new Map(); // nome mostrato -> valori per 100 g della voce della TABELLA
 let alimentoSelezionato = null; // { chiave, nome, per100 }
 let modoCalcolo = "grammi";     // grammi | kcal | proteine
 let calcoloCorrente = null;     // risultato mostrato nell'anteprima
@@ -677,8 +691,10 @@ function leggiProfilo(salvato) {
 function numeroDaCampo(v) {
   if (typeof v === "number") return isFinite(v) ? String(v) : "";
   if (typeof v !== "string") return "";
-  const pulito = v.trim().slice(0, 12);
-  if (!pulito || isNaN(parseFloat(pulito.replace(",", ".")))) return "";
+  // Con il punto: un campo numerico non mostra "70,5", e il valore sembrava
+  // sparito anche se era stato accettato.
+  const pulito = v.trim().slice(0, 12).replace(",", ".");
+  if (!pulito || isNaN(parseFloat(pulito))) return "";
   return pulito;
 }
 
@@ -697,6 +713,7 @@ function leggiPasti(salvati) {
       // ricarica, o dopo un F5 la voce non saprebbe più da dove viene.
       ...(typeof v.idAlimento === "string" && v.idAlimento.trim()
         ? { idAlimento: v.idAlimento.trim().slice(0, 40) } : {}),
+      ...(Number(v.codice) > 0 && !v.idAlimento ? { codice: Number(v.codice) } : {}),
       ...leggiUnita(v)
     }));
   });
@@ -934,6 +951,9 @@ const MISURE = {
 
 // Unità scelta nel riquadro di inserimento.
 let unitaCorrente = "g";
+// L'ultima conversione fatta dal selettore: il numero scritto nel campo e il
+// peso da cui veniva (vedi impostaUnita).
+let riferimentoUnita = null;
 
 // Quali misure può usare un alimento, in ordine di comodità.
 function misureDisponibili(densita, gCucchiaio) {
@@ -990,6 +1010,16 @@ function misuraDaGrammi(grammi, unita, densita, gCucchiaio) {
   return perUno > 0 ? grammi / perUno : null;
 }
 
+// Quanti decimali tiene una quantità in misura casalinga. Uno solo non basta:
+// 150 ml sono 0,75 bicchieri, e a un decimale diventavano 0,8, cioè 160 ml.
+// Vale per la quantità salvata nella voce E per i grammi che se ne ricavano,
+// che si calcolano dal numero già arrotondato: altrimenti la riga diceva
+// «1,3 cucchiai» e contava i grammi di 1,25, e riconfermando lo stesso numero
+// il peso cambiava.
+function arrotondaQuantita(n) {
+  return Math.round(n * 100) / 100;
+}
+
 // Numeri all'italiana, senza decimali inutili: 250 ml, non "250,0 ml".
 function fmtNumero(n) {
   return Number(n).toLocaleString("it-IT");
@@ -1009,7 +1039,7 @@ function quantitaVoce(voce) {
     const q = Number(voce.quantita) > 0
       ? Number(voce.quantita)
       : misuraDaGrammi(voce.grammi, unita, voce.densita, voce.gCucchiaio);
-    if (q > 0) return { valore: round1(q), unita };
+    if (q > 0) return { valore: arrotondaQuantita(q), unita };
   }
   return { valore: voce.grammi, unita: "g" };
 }
@@ -1428,8 +1458,15 @@ const SCARTO_MODULO_KCAL = 5;
 // il numero e lascia il giudizio.
 function avvisoCoerenza(valori) {
   const per100 = normalizzaPer100(valori);
-  if (!(per100.kcal > 0)) return "";
   const daiMacro = kcalDaiMacro(per100);
+  // Zero calorie con dei macronutrienti non è un caso limite da lasciar
+  // passare: l'alimento varrebbe 0 kcal in ogni dieta, e in giornata nessun
+  // avviso lo direbbe più.
+  if (!(per100.kcal > 0)) {
+    return daiMacro >= SCARTO_MODULO_KCAL
+      ? `I macronutrienti valgono ${fmtNumero(round1(daiMacro))} kcal per 100 g, ma le calorie dichiarate sono 0: c'è un numero sbagliato.`
+      : "";
+  }
   const scarto = per100.kcal - daiMacro;
   if (Math.abs(scarto) < SCARTO_MODULO_KCAL) return "";
   if (Math.abs(scarto) / per100.kcal < SCARTO_MODULO_PERC) return "";
@@ -1451,12 +1488,27 @@ function eAlcolico(per100) {
   return scarto >= SCARTO_ALCOL_KCAL && scarto / per100.kcal >= SCARTO_ALCOL_PERC;
 }
 
+// Vero se la voce viene dalla tabella degli alimenti. Le voci nuove lo dicono
+// da sé: un `codice` per la tabella, un `idAlimento` per i tuoi alimenti.
+// Quelle inserite prima dei timbri hanno solo il nome, e il nome da solo non
+// basta: prima un tuo «Yogurt greco» si prendeva anche le voci dello YOGURT
+// GRECO della tabella, e correggendolo le riscriveva. Se il nome è anche della
+// tabella decidono i valori: uguali a quelli della tabella, la voce è sua.
+function vieneDallaTabella(voce) {
+  if (voce.codice) return true;
+  if (voce.idAlimento) return false;
+  const tabella = tabellaPerNome.get(voce.nome);
+  if (!tabella || !voce.per100) return false;
+  return ["kcal", "proteine", "grassi", "carboidrati"].every(k => tabella[k] === voce.per100[k]);
+}
+
 // L'alimento personalizzato da cui viene una voce, o null se viene dalla
 // tabella. Il timbro è l'id; per le voci inserite prima che esistesse resta il
 // nome. Un alimento cancellato dopo l'inserimento lascia la voce timbrata ma
 // senza niente da aprire: torna null, e chi chiama se ne accorge.
 function customDellaVoce(voce) {
   if (voce.idAlimento) return alimentiCustom.find(a => a.id === voce.idAlimento) || null;
+  if (vieneDallaTabella(voce)) return null;
   const chiave = risolviChiave(voce.nome);
   const id = chiave ? idCustomDi.get(chiave) : null;
   return id ? alimentiCustom.find(a => a.id === id) || null : null;
@@ -1543,8 +1595,12 @@ function ricostruisciElenco() {
   categoriaDi = new Map();
   densitaDi = new Map();
   cucchiaioDi = new Map();
+  codiceDi = new Map();
+  tabellaPerNome = new Map();
   alimentiBase.forEach(a => {
     foodMap.set(a.nome, normalizzaPer100(a));
+    tabellaPerNome.set(formattaNome(a.nome), normalizzaPer100(a));
+    if (Number(a.codice) > 0) codiceDi.set(a.nome, Number(a.codice));
     // Densità: presente solo sui liquidi, è ciò che abilita i millilitri.
     if (Number(a.densita) > 0) densitaDi.set(a.nome, Number(a.densita));
     if (Number(a.gCucchiaio) > 0) cucchiaioDi.set(a.nome, Number(a.gCucchiaio));
@@ -1556,6 +1612,9 @@ function ricostruisciElenco() {
   alimentiCustom.forEach(a => {
     foodMap.set(a.nome, normalizzaPer100(a));
     if (a.id) idCustomDi.set(a.nome, a.id);
+    // Un tuo alimento con il nome di uno della tabella lo copre: da lì in poi
+    // le voci nuove vengono da te, e il codice della tabella non è più loro.
+    codiceDi.delete(a.nome);
     // Con una categoria l'alimento entra in un gruppo, e da lì in poi le
     // sostituzioni lo trattano come tutti gli altri. Se non ce l'ha non si
     // tocca la mappa: un alimento che porta il nome di uno della tabella
@@ -1574,6 +1633,21 @@ function ricostruisciElenco() {
     testoChiave: normalizzaTesto(k),
     testoMostrato: normalizzaTesto(formattaNome(k))
   }));
+  recuperaAssenti();
+}
+
+// Per qualche versione le voci hanno salvato i -2 della tabella già portati a
+// zero, senza l'elenco `assenti`: alla rilettura quei carboidrati del
+// parmigiano tornavano "0 g", misurati, e il totale non si diceva più per
+// difetto. Una voce che viene dalla tabella si riprende l'elenco da lì.
+function recuperaAssenti() {
+  archivio.diete.forEach(dieta => dieta.giornate.forEach(giornata => PASTI.forEach(pasto => {
+    giornata.pasti[pasto].forEach(voce => {
+      if (!voce.per100 || voce.per100.assenti || !vieneDallaTabella(voce)) return;
+      const tabella = tabellaPerNome.get(voce.nome);
+      if (tabella && tabella.assenti) voce.per100.assenti = tabella.assenti.slice();
+    });
+  })));
 }
 
 // I gruppi alimentari sono scritti in GRUPPI_ALIMENTARI come nomi di categoria
@@ -1735,6 +1809,7 @@ function risolviChiave(testo) {
 // ---------- Selezione alimento e calcolo ----------
 
 function selezionaAlimento(chiave) {
+  riferimentoUnita = null;
   if (!chiave || !foodMap.has(chiave)) {
     alimentoSelezionato = null;
     alimentoScelto.classList.add("hidden");
@@ -1743,7 +1818,7 @@ function selezionaAlimento(chiave) {
     const densita = densitaDi.get(chiave) || null;
     const gCucchiaio = cucchiaioDi.get(chiave) || null;
     alimentoSelezionato = { chiave, nome: formattaNome(chiave), per100, densita, gCucchiaio,
-      idAlimento: idCustomDi.get(chiave) || null };
+      idAlimento: idCustomDi.get(chiave) || null, codice: codiceDi.get(chiave) || null };
     alimentoSceltoNome.textContent = alimentoSelezionato.nome;
     // Le conversioni si dicono subito: sono quelle che l'app applica, e vederle
     // scritte evita di doversi fidare al buio.
@@ -1805,11 +1880,22 @@ function impostaUnita(unita) {
   if (!misureDisponibili(densita, gCucchiaio).includes(unita)) return;
   // Il numero già digitato viene convertito invece di essere azzerato: chi ha
   // scritto 200 ml e passa ai grammi si aspetta di leggere 206.
+  //
+  // Si converte dal peso di PARTENZA, non dal numero arrotondato a video: un
+  // cucchiaio d'olio passato ai bicchieri è 0,07, e ripartendo da lì il
+  // ritorno ai cucchiai dava 0,93. Finché nel campo resta il numero scritto
+  // dalla conversione, il peso vero è quello messo da parte qui.
   const valore = parseFloat(quantitaInput.value);
   if (valore > 0) {
-    const grammi = grammiDaMisura(valore, unitaCorrente, densita, gCucchiaio);
+    const grammi = riferimentoUnita && riferimentoUnita.scritto === valore
+      ? riferimentoUnita.grammi
+      : grammiDaMisura(valore, unitaCorrente, densita, gCucchiaio);
     const convertito = grammi !== null ? misuraDaGrammi(grammi, unita, densita, gCucchiaio) : null;
-    if (convertito !== null) quantitaInput.value = round1(convertito);
+    if (convertito !== null) {
+      const scritto = unita === "g" ? round1(convertito) : arrotondaQuantita(convertito);
+      quantitaInput.value = scritto;
+      riferimentoUnita = { scritto, grammi };
+    }
   }
   unitaCorrente = unita;
   aggiornaSelettoreUnita();
@@ -1873,7 +1959,9 @@ function aggiornaAnteprima() {
   }
   modoNota.textContent = testoNotaModo();
 
-  const valore = parseFloat(quantitaInput.value);
+  let valore = parseFloat(quantitaInput.value);
+  // In misura casalinga i conti partono dal numero che verrà salvato.
+  if (modoCalcolo === "grammi" && unitaCorrente !== "g") valore = arrotondaQuantita(valore);
   if (!alimentoSelezionato || !valore || valore <= 0) {
     preview.classList.add("hidden");
     aggiungiBtn.disabled = true;
@@ -1886,9 +1974,16 @@ function aggiornaAnteprima() {
     preview.classList.add("hidden");
     aggiungiBtn.disabled = true;
     calcoloCorrente = null;
-    modoNota.textContent = modoCalcolo === "kcal"
-      ? "Questo alimento non apporta calorie: non si può partire da un valore calorico."
-      : "Questo alimento non contiene proteine: non si può partire dalle proteine.";
+    // Un -2 della tabella non vuol dire "zero proteine" ma "nessuno le ha
+    // misurate": dire che l'olio non ne contiene sarebbe un'affermazione che
+    // la tabella non fa.
+    const assenti = alimentoSelezionato.per100.assenti || [];
+    const chiaveModo = modoCalcolo === "kcal" ? "kcal" : "proteine";
+    modoNota.textContent = assenti.includes(chiaveModo)
+      ? "Per questo alimento la tabella non riporta le proteine: non si può partire dalle proteine."
+      : modoCalcolo === "kcal"
+        ? "Questo alimento non apporta calorie: non si può partire da un valore calorico."
+        : "Questo alimento non contiene proteine: non si può partire dalle proteine.";
     return;
   }
 
@@ -1924,7 +2019,7 @@ function aggiornaAnteprima() {
   // elimina un alimento personalizzato («le voci già inserite restano
   // invariate»), e che con l'oggetto condiviso non avrebbe potuto mantenere.
   calcoloCorrente = { nome: alimentoSelezionato.nome, grammi: v.grammi, per100: copiaPer100(alimentoSelezionato.per100),
-    idAlimento: alimentoSelezionato.idAlimento };
+    idAlimento: alimentoSelezionato.idAlimento, codice: alimentoSelezionato.codice };
   // L'unità con cui è stata scritta la quantità resta attaccata alla voce: la
   // riga, la stampa e il testo copiato la ripetono come l'ha scritta chi compone
   // la dieta, invece di ritradurla in grammi.
@@ -1934,7 +2029,7 @@ function aggiornaAnteprima() {
   if (alimentoSelezionato.gCucchiaio) calcoloCorrente.gCucchiaio = alimentoSelezionato.gCucchiaio;
   if (unitaCorrente !== "g" && modoCalcolo === "grammi") {
     calcoloCorrente.unita = unitaCorrente;
-    calcoloCorrente.quantita = round1(valore);
+    calcoloCorrente.quantita = valore;
   }
 
   previewKcal.textContent = dec(v.kcal);
@@ -2040,9 +2135,10 @@ function salvaNuovoAlimento() {
 
 // Tutte le voci, in tutte le diete, nate da un certo alimento personalizzato.
 // Il legame è l'id. Per le voci inserite prima che gli id esistessero resta il
-// nome, che è tutto quello che hanno: se un tuo alimento si chiama come uno
-// della tabella, quelle vecchie voci non sono distinguibili — per questo la
-// finestra di conferma elenca sempre dove andrà a finire la modifica.
+// nome, ma solo se la voce non viene dalla tabella (vieneDallaTabella): con un
+// tuo alimento che si chiama come uno della tabella, il nome da solo si
+// portava dietro anche le voci di quest'ultima. La finestra di conferma elenca
+// comunque sempre dove andrà a finire la modifica.
 function vociDelAlimento(alimento) {
   const atteso = formattaNome(alimento.nome);
   const trovate = [];
@@ -2050,7 +2146,9 @@ function vociDelAlimento(alimento) {
     dieta.giornate.forEach(giornata => {
       PASTI.forEach(pasto => {
         giornata.pasti[pasto].forEach(voce => {
-          const combacia = voce.idAlimento ? voce.idAlimento === alimento.id : voce.nome === atteso;
+          const combacia = voce.idAlimento
+            ? voce.idAlimento === alimento.id
+            : voce.nome === atteso && !vieneDallaTabella(voce);
           if (combacia) trovate.push({ dieta, giornata, pasto, voce });
         });
       });
@@ -2393,7 +2491,10 @@ function aggiungiAlPasto() {
     ...(calcoloCorrente.densita ? { densita: calcoloCorrente.densita } : {}),
     ...(calcoloCorrente.gCucchiaio ? { gCucchiaio: calcoloCorrente.gCucchiaio } : {}),
     ...(calcoloCorrente.unita ? { unita: calcoloCorrente.unita, quantita: calcoloCorrente.quantita } : {}),
-    ...(calcoloCorrente.idAlimento ? { idAlimento: calcoloCorrente.idAlimento } : {})
+    ...(calcoloCorrente.idAlimento ? { idAlimento: calcoloCorrente.idAlimento } : {}),
+    // Il timbro della tabella: dice da dove viene la voce anche quando un tuo
+    // alimento ha lo stesso nome (vedi vieneDallaTabella).
+    ...(calcoloCorrente.codice ? { codice: calcoloCorrente.codice } : {})
   });
   salvaStato();
   renderGiornata();
@@ -2414,16 +2515,31 @@ function aggiungiAlPasto() {
 // sembrava un errore di conto. Il punto che manca va alla voce che ha perso
 // di più nell'arrotondamento per difetto.
 function ripartizioneMacro(t) {
-  const kcal = [t.proteine * 4, t.grassi * 9, t.carboidrati * 4];
-  const somma = kcal[0] + kcal[1] + kcal[2];
-  if (somma <= 0) return { prot: 0, fat: 0, carb: 0 };
-  const esatte = kcal.map(k => (k / somma) * 100);
+  const [prot, fat, carb] = percentualiIntere([t.proteine * 4, t.grassi * 9, t.carboidrati * 4]);
+  return { prot, fat, carb };
+}
+
+// Il metodo, per qualunque elenco di valori non negativi: percentuali intere
+// che sommano 100, o tutti zeri se la somma è zero. Lo usano anche le quote
+// dei pasti, che arrotondate una per una davano 33 + 33 + 33.
+function percentualiIntere(valori) {
+  const somma = valori.reduce((s, v) => s + v, 0);
+  if (somma <= 0) return valori.map(() => 0);
+  const esatte = valori.map(v => (v / somma) * 100);
   const intere = esatte.map(Math.floor);
-  let resto = 100 - (intere[0] + intere[1] + intere[2]);
-  [0, 1, 2]
+  let resto = 100 - intere.reduce((s, v) => s + v, 0);
+  valori.map((_, i) => i)
     .sort((i, j) => (esatte[j] - intere[j]) - (esatte[i] - intere[i]))
     .forEach(i => { if (resto > 0) { intere[i]++; resto--; } });
-  return { prot: intere[0], fat: intere[1], carb: intere[2] };
+  return intere;
+}
+
+// Quota di ciascun pasto sulle calorie della giornata, in percentuali che
+// sommano 100.
+function quotePasti(pasti) {
+  const kcal = PASTI.map(p => totaliVoci(pasti[p]).kcal);
+  const quote = percentualiIntere(kcal);
+  return new Map(PASTI.map((p, i) => [p, quote[i]]));
 }
 
 // Dettaglio dei macronutrienti di una riga. Sta in una funzione sola perché la
@@ -2481,10 +2597,9 @@ function scartoPastoHtml(pasto, kcalPasto) {
   return `<span class="pasto-obiettivo${classe}">${testo}</span>`;
 }
 
-function pastoHtml(pasto, kcalGiorno) {
+function pastoHtml(pasto, quota) {
   const voci = pastiCorrenti()[pasto];
   const t = totaliVoci(voci);
-  const quota = kcalGiorno > 0 ? Math.round((t.kcal / kcalGiorno) * 100) : 0;
   return `
     <div class="pasto" data-pasto="${escapeHtml(pasto)}">
       <div class="pasto-testata">
@@ -2509,8 +2624,11 @@ function pastoHtml(pasto, kcalGiorno) {
 function bloccoObiettivoMacro(nome, valore, meta, classeBarra) {
   if (!(meta > 0)) return "";
   const percentuale = Math.min(100, Math.round((valore / meta) * 100));
-  const scarto = round1(Math.abs(meta - valore));
-  const sforato = valore > meta;
+  // Sforato si decide sul numero arrotondato, quello che si legge: con 0,04 g
+  // in più la riga diceva «0 g oltre».
+  const residuo = round1(meta - valore);
+  const scarto = Math.abs(residuo);
+  const sforato = residuo < 0;
   return `
     <div class="totali-riga-obiettivo">
       <span>${nome} <strong>${dec(valore)}</strong> / ${dec(meta)} g</span>
@@ -2528,8 +2646,11 @@ function totaliHtml(t) {
 
   if (obiettivo > 0) {
     const percentuale = Math.min(100, Math.round((t.kcal / obiettivo) * 100));
-    const sforato = t.kcal > obiettivo;
-    const scarto = Math.abs(arrotonda(obiettivo - t.kcal));
+    // Come nella barra fissa in basso: «0 kcal oltre l'obiettivo» accanto a
+    // «restano 0 kcal» erano due verdetti diversi sullo stesso numero.
+    const residuoKcal = arrotonda(obiettivo - t.kcal);
+    const sforato = residuoKcal < 0;
+    const scarto = Math.abs(residuoKcal);
     residuo = sforato
       ? `<span class="totali-residuo sforato">${scarto} kcal oltre l'obiettivo (${arrotonda(obiettivo)})</span>`
       : `<span class="totali-residuo">restano ${scarto} kcal su ${arrotonda(obiettivo)}</span>`;
@@ -2543,8 +2664,9 @@ function totaliHtml(t) {
   if (state.obiettivoProteine > 0) {
     const meta = state.obiettivoProteine;
     const percentuale = Math.min(100, Math.round((t.proteine / meta) * 100));
-    const scarto = round1(Math.abs(meta - t.proteine));
-    const raggiunto = t.proteine >= meta;
+    const mancano = round1(meta - t.proteine);
+    const scarto = Math.abs(mancano);
+    const raggiunto = mancano <= 0;
     bloccoProteine = `
       <div class="totali-riga-obiettivo">
         <span>Proteine <strong>${dec(t.proteine)}</strong> / ${dec(meta)} g</span>
@@ -2584,15 +2706,8 @@ function totaliHtml(t) {
     return `<p class="totali-incompleto">${arrotonda(x.kcal)} kcal su ${arrotonda(t.kcal)} non sono spiegate dai macronutrienti di «${escapeHtml(x.nome)}»: ne dichiara ${fmtNumero(round1(x.per100.kcal))} per 100 g, i suoi macro ne spiegano ${fmtNumero(round1(spiegate))}.${correggi}</p>`;
   }).join("");
 
-  const assenti = datiAssenti(vociDelGiorno);
-  let avvisoAssenti = "";
-  if (assenti.size) {
-    const parti = Array.from(assenti.entries()).map(([k, nomi]) => {
-      const n = nomi.size;
-      return `${ETICHETTE_MACRO[k]} (${n} ${n === 1 ? "alimento" : "alimenti"})`;
-    });
-    avvisoAssenti = `<p class="totali-incompleto">Totale per difetto: la tabella non riporta ${parti.join(" · ")}.</p>`;
-  }
+  const testoDifetto = testoAssenti(vociDelGiorno);
+  const avvisoAssenti = testoDifetto ? `<p class="totali-incompleto">${escapeHtml(testoDifetto)}</p>` : "";
 
   return `
     <div class="totali">
@@ -2733,9 +2848,10 @@ function renderGiornata() {
     giornataContenuto.innerHTML = '<p class="vuoto">Nessun alimento inserito: comincia dal riquadro qui sopra.</p>';
     totaliGiorno.innerHTML = "";
   } else {
+    const quote = quotePasti(pastiCorrenti());
     giornataContenuto.innerHTML = PASTI
       .filter(p => pastiCorrenti()[p].length > 0)
-      .map(p => pastoHtml(p, t.kcal))
+      .map(p => pastoHtml(p, quote.get(p)))
       .join("");
     totaliGiorno.innerHTML = totaliHtml(t);
   }
@@ -2747,12 +2863,13 @@ function renderGiornata() {
 // render completo lo distruggerebbe a ogni cifra digitata).
 function aggiornaCalcoliUI() {
   const t = totaliGiornata();
+  const quote = quotePasti(pastiCorrenti());
 
   giornataContenuto.querySelectorAll(".pasto").forEach(blocco => {
     const pasto = blocco.dataset.pasto;
     const voci = pastiCorrenti()[pasto] || [];
     const tp = totaliVoci(voci);
-    const quota = t.kcal > 0 ? Math.round((tp.kcal / t.kcal) * 100) : 0;
+    const quota = quote.get(pasto) || 0;
     blocco.querySelector(".pasto-kcal").innerHTML =
       `${arrotonda(tp.kcal)} kcal <span class="pasto-quota">(${quota}%)</span>${scartoPastoHtml(pasto, tp.kcal)}`;
     blocco.querySelector(".pasto-macro").textContent =
@@ -2788,8 +2905,9 @@ function vocePer(pasto, indice) {
 // è nell'unità mostrata: in millilitri il peso si ricava dalla densità, ed è il
 // peso a finire nei conti. Torna false se il numero non è utilizzabile.
 function scriviQuantitaVoce(voce, valore) {
-  if (!(valore > 0)) return false;
   const unita = voce.unita;
+  if (unita && unita !== "g") valore = arrotondaQuantita(valore);
+  if (!(valore > 0)) return false;
   const grammi = unita && unita !== "g"
     ? grammiDaMisura(valore, unita, voce.densita, voce.gCucchiaio)
     : null;
@@ -2801,7 +2919,7 @@ function scriviQuantitaVoce(voce, valore) {
   // Oltre il tetto non si scrive niente e la riga resta com'era: chi lo chiama
   // controlla il valore di ritorno.
   if (pesati > MAX_GRAMMI_VOCE) return false;
-  if (grammi !== null) voce.quantita = round1(valore);
+  if (grammi !== null) voce.quantita = valore;
   voce.grammi = pesati;
   return true;
 }
@@ -3097,7 +3215,7 @@ function quantitaUsabile(valore, unita) {
 
 let sostituzioneInCorso = null;
 
-function candidatiSostituzione(chiaveOriginale, kcalDaPareggiare, per100Originale, per100Voce) {
+function candidatiSostituzione(chiaveOriginale, kcalDaPareggiare, per100Originale, per100Voce, personalizzata) {
   const categoria = categoriaDi.get(chiaveOriginale) || null;
   const candidati = [];
   // «Bevande alcoliche, analcoliche» è una categoria sola, quindi senza questo
@@ -3105,7 +3223,17 @@ function candidatiSostituzione(chiaveOriginale, kcalDaPareggiare, per100Original
   // (zero) macronutrienti, scarto perfetto su ogni riga del confronto. Un
   // alcolico si propone solo al posto di un altro alcolico, dove il cambio è
   // quello che si sta davvero cercando — il vino al posto della birra.
-  const partiamoDaUnAlcolico = eAlcolico(per100Voce);
+  // Su un alimento tuo lo stesso scarto non è alcol ma valori che non tornano
+  // (vedi kcalNonSpiegate): al posto di uno sciroppo scritto male arrivava il
+  // Marsala.
+  const partiamoDaUnAlcolico = eAlcolico(per100Voce) && !personalizzata;
+  // Un dato che manca da una parte o dall'altra non ha uno scarto: scriverlo
+  // "0" lo farebbe sembrare misurato, e lo zero vincerebbe nell'ordinamento.
+  const assentiVoce = (per100Voce && per100Voce.assenti) || [];
+  const scartoMacro = (k, v, per100) =>
+    assentiVoce.includes(k) || (per100.assenti || []).includes(k)
+      ? null
+      : round1(v[k] - per100Originale[k]);
 
   foodMap.forEach((per100, chiave) => {
     if (chiave === chiaveOriginale) return;
@@ -3148,9 +3276,9 @@ function candidatiSostituzione(chiaveOriginale, kcalDaPareggiare, per100Original
       categoria: categoriaDi.get(chiave) || "",
       valori: v,
       dKcal: Math.round(scarto),
-      dProt: round1(v.proteine - per100Originale.proteine),
-      dFat: round1(v.grassi - per100Originale.grassi),
-      dCarb: round1(v.carboidrati - per100Originale.carboidrati)
+      dProt: scartoMacro("proteine", v, per100),
+      dFat: scartoMacro("grassi", v, per100),
+      dCarb: scartoMacro("carboidrati", v, per100)
     });
   });
 
@@ -3158,9 +3286,19 @@ function candidatiSostituzione(chiaveOriginale, kcalDaPareggiare, per100Original
 }
 
 // Fra due alternative con le stesse calorie, quella con proteine simili cambia
-// meno il piano; a parità di proteine decidono i carboidrati.
+// meno il piano; a parità di proteine decidono i carboidrati. Uno scarto non
+// misurabile (dato n.d.) passa dietro a tutti quelli misurati: non si può
+// promettere vicino ciò che non si conosce.
+const SCARTO_IGNOTO = 1e6;
+function distanza(d) {
+  return d === null ? SCARTO_IGNOTO : Math.abs(d);
+}
 function piuVicino(a, b) {
-  return (Math.abs(a.dProt) - Math.abs(b.dProt)) || (Math.abs(a.dCarb) - Math.abs(b.dCarb));
+  return (distanza(a.dProt) - distanza(b.dProt)) || (distanza(a.dCarb) - distanza(b.dCarb));
+}
+
+function segnoMacro(d) {
+  return d === null ? "n.d." : segno(d);
 }
 
 // Quante ne porta al massimo una sola categoria: le righe disponibili divise
@@ -3213,7 +3351,7 @@ function apriSostituzione(pasto, indice) {
   // La chiave del database si ricava dal nome mostrato: le voci salvate
   // portano il nome già formattato, non la chiave originale.
   const chiave = risolviChiave(voce.nome);
-  const candidati = candidatiSostituzione(chiave, v.kcal, v, voce.per100);
+  const candidati = candidatiSostituzione(chiave, v.kcal, v, voce.per100, daPersonalizzato(voce));
 
   sostituzioneInCorso = { pasto, indice };
   sostituisciTitolo.textContent = `Al posto di ${voce.nome} (${testoQuantitaVoce(voce)}, ${dec(v.kcal)} kcal)`;
@@ -3230,7 +3368,7 @@ function apriSostituzione(pasto, indice) {
         <span class="sostituisci-nome">${escapeHtml(formattaNome(c.chiave))}</span>
         <span class="sostituisci-quantita">${c.quantita}</span>
         <span class="sostituisci-categoria">${escapeHtml(c.categoria)}</span>
-        <span class="sostituisci-delta">${arrotonda(c.valori.kcal)} kcal${c.dKcal ? ` (${segno(c.dKcal)})` : ""} · ${segno(c.dProt)} P · ${segno(c.dFat)} G · ${segno(c.dCarb)} C</span>
+        <span class="sostituisci-delta">${arrotonda(c.valori.kcal)} kcal${c.dKcal ? ` (${segno(c.dKcal)})` : ""} · ${segnoMacro(c.dProt)} P · ${segnoMacro(c.dFat)} G · ${segnoMacro(c.dCarb)} C</span>
       </button>`).join("");
     // Si porta appresso anche l'unità scelta: la quantità applicata dev'essere
     // quella letta nell'elenco, non una riconversione dai grammi che rimetterebbe
@@ -3272,8 +3410,10 @@ function applicaSostituzione(indiceCandidato) {
   // La voce ora viene da un altro alimento: il timbro di prima la legherebbe a
   // un personalizzato che non c'entra più, e una sua correzione la seguirebbe.
   delete voce.idAlimento;
+  delete voce.codice;
   const idNuovo = idCustomDi.get(scelto.chiave);
   if (idNuovo) voce.idAlimento = idNuovo;
+  else if (codiceDi.has(scelto.chiave)) voce.codice = codiceDi.get(scelto.chiave);
   if (densitaNuova) voce.densita = densitaNuova;
   if (cucchiaioNuovo) voce.gCucchiaio = cucchiaioNuovo;
   const misuraNuova = misureDisponibili(densitaNuova, cucchiaioNuovo).includes(scelto.unita)
@@ -3282,8 +3422,8 @@ function applicaSostituzione(indiceCandidato) {
   if (misuraNuova !== "g") {
     voce.unita = misuraNuova;
     voce.quantita = misuraNuova === scelto.unita && scelto.valore > 0
-      ? round1(scelto.valore)
-      : round1(misuraDaGrammi(voce.grammi, misuraNuova, densitaNuova, cucchiaioNuovo));
+      ? arrotondaQuantita(scelto.valore)
+      : arrotondaQuantita(misuraDaGrammi(voce.grammi, misuraNuova, densitaNuova, cucchiaioNuovo));
   }
   // La nota descriveva l'alimento di prima ("cotta al dente" su una pasta):
   // portarla sul sostituto scriverebbe una sciocchezza, che finirebbe anche sul
@@ -3567,7 +3707,8 @@ function testoDiGiornata(giornata, conNome) {
   const intestazione = conNome ? `${giornata.nome.toUpperCase()}\n\n` : "";
   return intestazione + blocchi.join("\n\n") +
     `\n\nTOTALE GIORNATA: ${arrotonda(t.kcal)} kcal${obiettivo}` +
-    `\n${rigaMacroTesto(t)}`;
+    `\n${rigaMacroTesto(t)}` +
+    noteTesto(vociDi(giornata.pasti), t.kcal);
 }
 
 // Con più diete aperte il testo incollato dice da quale arriva: incollato in
@@ -3611,7 +3752,8 @@ function testoTutteLeGiornate() {
   if (riepilogo && riepilogo.numero > 1) {
     coda = `\n\n${"─".repeat(28)}\nRIEPILOGO — ${riepilogo.numero} giornate` +
       `\nMedia giornaliera: ${arrotonda(riepilogo.media.kcal)} kcal` +
-      `\n${rigaMacroTesto(riepilogo.media)}`;
+      `\n${rigaMacroTesto(riepilogo.media)}` +
+      (testoAssenti(state.giornate.flatMap(g => vociDi(g.pasti))) ? "\nMedia per difetto: in qualche giornata mancano dei dati (vedi sopra)." : "");
   }
   return conIntestazioneDieta(blocchi.join(`\n\n${"─".repeat(28)}\n\n`) + coda);
 }
@@ -3764,11 +3906,32 @@ function bloccoPazienteGiornata(giornata, conNome) {
 // dice quale nutriente manca e in quanti alimenti. Senza, sulla carta il
 // totale sembrava esatto.
 function avvisoAssentiStampa(voci) {
+  const testo = testoAssenti(voci);
+  return testo ? `<div class="dettaglio">${escapeHtml(testo)}</div>` : "";
+}
+
+// La frase sul totale per difetto, in testo semplice: è la stessa a schermo,
+// in stampa e nel testo copiato. Prima il testo copiato non la diceva, e un
+// totale senza carboidrati del parmigiano finiva in cartella come esatto.
+function testoAssenti(voci) {
   const assenti = datiAssenti(voci);
   if (!assenti.size) return "";
   const parti = Array.from(assenti.entries()).map(([k, nomi]) =>
     `${ETICHETTE_MACRO[k]} (${nomi.size} ${nomi.size === 1 ? "alimento" : "alimenti"})`);
-  return `<div class="dettaglio">Totale per difetto: la tabella non riporta ${parti.join(" · ")}.</div>`;
+  return `Totale per difetto: la tabella non riporta ${parti.join(" · ")}.`;
+}
+
+// Le righe di avvertenza per il testo copiato: dati mancanti e calorie
+// dall'alcol, che le percentuali dei macronutrienti non coprono.
+function noteTesto(voci, kcalTotali) {
+  const note = [];
+  const alcol = kcalNonSpiegate(voci).alcol;
+  if (alcol.kcal >= 1) {
+    note.push(`${arrotonda(alcol.kcal)} kcal su ${arrotonda(kcalTotali)} vengono dall'alcol (${elencoNomi(alcol.nomi)}): le percentuali riguardano solo proteine, grassi e carboidrati.`);
+  }
+  const difetto = testoAssenti(voci);
+  if (difetto) note.push(difetto);
+  return note.length ? `\n${note.join("\n")}` : "";
 }
 
 function vociDi(pasti) {
@@ -3909,11 +4072,12 @@ function percGrassiEffettiva(p) {
 }
 
 function calcolaFabbisogno(p) {
-  const eta = Number(p.eta);
-  const peso = Number(p.peso);
-  const altezza = Number(p.altezza);
+  const eta = numeroProfilo(p.eta);
+  const peso = numeroProfilo(p.peso);
+  const altezza = numeroProfilo(p.altezza);
   const mancanti = [];
   const fuoriScala = [];
+  let minorenne = false;
   if (!p.sesso) mancanti.push("sesso");
   // Un campo vuoto e un campo sbagliato sono due cose diverse e vanno dette in
   // due modi diversi. Prima bastava `!eta`: uno zero veniva preso per un campo
@@ -3921,18 +4085,23 @@ function calcolaFabbisogno(p) {
   // metabolismo basale negativo prima che qualcosa lo fermasse più a valle.
   Object.keys(LIMITI_PROFILO).forEach(campo => {
     const limite = LIMITI_PROFILO[campo];
-    const valore = Number(p[campo]);
+    const valore = numeroProfilo(p[campo]);
     if (String(p[campo] == null ? "" : p[campo]).trim() === "" || !isFinite(valore)) {
       mancanti.push(limite.nome);
+    } else if (campo === "eta" && valore > 0 && valore < ETA_ADULTA) {
+      minorenne = true;
     } else if (valore < limite.min || valore > limite.max) {
       fuoriScala.push(`${limite.nome} fra ${limite.min} e ${limite.max} ${limite.unita}`);
     }
   });
-  if (mancanti.length || fuoriScala.length) return { mancanti, fuoriScala };
+  if (mancanti.length || fuoriScala.length || minorenne) return { mancanti, fuoriScala, minorenne };
 
   // Mifflin-St Jeor: BMR = 10·peso + 6,25·altezza − 5·età + c
   const costante = p.sesso === "M" ? 5 : -161;
   const bmr = Math.round(10 * peso + 6.25 * altezza - 5 * eta + costante);
+  // Con i limiti qui sopra non succede (il minimo è oltre 300 kcal), ma un
+  // metabolismo basale non positivo non deve mai arrivare a video come numero.
+  if (!(bmr > 0)) return { mancanti: [], fuoriScala: ["valori di peso, altezza ed età compatibili fra loro"], minorenne: false };
   const fattore = FATTORI_ATTIVITA[attivitaValida(p.attivita)];
   const tdee = Math.round(bmr * fattore);
   const correzione = Math.round(Number(p.correzione) || 0);
@@ -3959,14 +4128,19 @@ function calcolaFabbisogno(p) {
 
   // Le quote sono ricalcolate sui grammi arrotondati (non sulle percentuali di
   // partenza), così i tre numeri mostrati corrispondono davvero ai grammi
-  // proposti e la loro somma sfiora il 100%.
+  // proposti. Arrotondate una per una facevano 99 o 101 in un caso su dodici:
+  // si ripartiscono come la barra dei macro, che somma sempre 100. Solo con la
+  // ripartizione impossibile la somma può superare 100, ed è giusto che si veda.
   const quota = (grammi, kcalG) => obiettivo > 0 ? Math.round(((grammi * kcalG) / obiettivo) * 100) : 0;
+  const quote = ripartizioneImpossibile || obiettivo <= 0
+    ? { prot: quota(proteine, KCAL_PER_G.proteine), fat: quota(grassi, KCAL_PER_G.grassi), carb: quota(carboidrati, KCAL_PER_G.carboidrati) }
+    : ripartizioneMacro({ proteine, grassi, carboidrati });
 
   return {
     bmr, fattore, tdee, correzione, obiettivo, peso,
-    gPerKg, proteine, quotaProteine: quota(proteine, KCAL_PER_G.proteine),
-    percGrassi, grassi, quotaGrassi: quota(grassi, KCAL_PER_G.grassi),
-    carboidrati, quotaCarboidrati: quota(carboidrati, KCAL_PER_G.carboidrati),
+    gPerKg, proteine, quotaProteine: quote.prot,
+    percGrassi, grassi, quotaGrassi: quote.fat,
+    carboidrati, quotaCarboidrati: quote.carb,
     ripartizioneImpossibile
   };
 }
@@ -4010,6 +4184,9 @@ function renderFabbisogno() {
     const righe = [];
     if (r.mancanti.length) {
       righe.push(`<div class="passaggio">Per la stima servono ancora: ${r.mancanti.join(", ")}.</div>`);
+    }
+    if (r.minorenne) {
+      righe.push(`<div class="fabbisogno-avviso">La stima usa la formula di Mifflin-St Jeor, che vale per gli adulti: sotto i ${ETA_ADULTA} anni serve un altro metodo. Gli obiettivi si possono scrivere a mano qui sopra.</div>`);
     }
     if (r.fuoriScala.length) {
       righe.push(`<div class="fabbisogno-avviso">Valori fuori scala: serve ${r.fuoriScala.join(" · ")}.</div>`);

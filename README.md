@@ -116,6 +116,12 @@ Se proteine e grassi richiesti superano da soli le calorie disponibili, i
 carboidrati restano a 0 e l'app lo segnala invece di mostrare un numero
 negativo.
 
+Mifflin-St Jeor è una formula **per adulti**: sotto i 18 anni l'app non fa la
+stima e lo dice, e gli obiettivi si scrivono a mano. I campi accettano età
+18–100 anni, peso 25–300 kg, altezza 120–230 cm (prima bastava 1 anno, 1 kg e
+50 cm, e si arrivava a un metabolismo basale negativo). Le quote delle tre
+righe fanno sempre 100%, come la barra dei macronutrienti.
+
 ### Ripartizione per pasto
 
 Facoltativa, propria di ogni dieta. Assegna a ogni pasto una quota delle calorie
@@ -178,6 +184,14 @@ diventa 3 cucchiaini, poi 12 g, e tornando indietro di nuovo 1 cucchiaio).
 Sulla scheda dell'alimento sono scritte le conversioni che l'app applica, e
 mezze dosi si possono scrivere (passo 0,5).
 
+Le quantità in misura casalinga tengono **due decimali**: 150 ml sono
+0,75 bicchieri, mentre con un decimale diventavano 0,8, cioè 160 ml. I grammi
+si ricavano dal numero salvato, non da quello battuto prima
+dell'arrotondamento, così la riga dice e conta la stessa cosa. E finché nel
+campo resta il numero scritto da una conversione, la conversione successiva
+riparte dal peso di prima: un cucchiaio passato ai bicchieri (0,08) torna
+1 cucchiaio, non 1,07.
+
 L'unità resta attaccata alla voce: riga, stampa e testo copiato dicono
 «2 cucchiaini» e «1 bicchiere», con singolare e plurale corretti. Nella voce si
 conservano **sia** la quantità scritta **sia** i grammi calcolati, così
@@ -216,10 +230,14 @@ categoria arriva.
 
 Siccome carni e pesci sono le categorie più numerose e le più somiglianti,
 riempirebbero da sole l'elenco e i legumi resterebbero sempre sotto il taglio.
-Perciò **ogni categoria del gruppo porta le sue tre migliori**, e i posti che
-restano vanno alle migliori in assoluto. Con sei categorie nel gruppo proteico
-le quote coprono quasi tutte le quindici righe, e il taglio per vicinanza pesa
-solo sulle ultime.
+Perciò **ogni categoria del gruppo porta le sue migliori**, quindici righe
+divise per le categorie che hanno qualcosa da proporre (due a testa nel gruppo
+proteico, che ne ha sei), e i posti che restano vanno alle migliori in
+assoluto. Così il taglio per vicinanza pesa solo sulle ultime righe.
+
+Partendo da un alimento con un dato **n.d.** (i carboidrati del parmigiano),
+lo scarto di quel nutriente non si può misurare: la riga scrive «n.d.» invece
+di «0» e quelle proposte passano dietro a quelle con lo scarto noto.
 
 **Le quantità sono porzioni, non risultati di una divisione.** «138 g di pollo»
 è un numero che nessuno pesa e che promette al paziente una precisione che il
@@ -324,11 +342,13 @@ Due cose che rendono la faccenda affidabile:
 - **Un id stabile.** Ogni alimento creato qui ne ha uno che non cambia quando
   cambiano nome e valori, e la voce lo porta con sé: è il filo che le lega.
   Senza, il legame sarebbe il nome, cioè proprio la cosa che si vuole poter
-  correggere. Gli alimenti salvati prima che gli id esistessero ne ricevono uno
-  alla prima apertura, e le voci che avevano già prodotto restano riconoscibili
-  dal nome — con il limite che un tuo alimento omonimo di uno della tabella non
-  è distinguibile, ed è un altro motivo per cui il riepilogo elenca sempre dove
-  andrà a finire la modifica.
+  correggere. Anche le voci della tabella hanno il loro timbro, il `codice`
+  dell'alimento: un tuo alimento che si chiama come uno della tabella non si
+  porta più dietro le voci di quest'ultima. Gli alimenti salvati prima che gli
+  id esistessero ne ricevono uno alla prima apertura, e le voci che avevano già
+  prodotto restano riconoscibili dal nome; se il nome è anche della tabella
+  decidono i valori — uguali a quelli della tabella, la voce è della tabella.
+  Il riepilogo elenca comunque sempre dove andrà a finire la modifica.
 - **«Annulla» esteso all'archivio.** La pila di annullamento lavora sulle
   giornate della dieta aperta, ma questa è l'unica operazione che può toccare
   diete chiuse: per lei lo scatto comprende le giornate di tutte le diete e
@@ -436,7 +456,9 @@ del foglio di partenza. Sono 41 alimenti (per esempio i carboidrati del
 parmigiano). L'app non lo confonde più con uno zero: sulla riga scrive «n.d.» e
 sotto il totale della giornata avverte che il conto è **per difetto**, dicendo
 quale nutriente manca e in quanti alimenti. Lo stesso vale sul foglio di lavoro
-stampato, righe, totale e media compresi.
+stampato, righe, totale e media compresi, e nel **testo copiato**, che riporta
+anche le calorie dall'alcol. Le voci salvate da versioni che portavano il −2 a
+zero senza annotarlo si riprendono l'informazione dalla tabella in lettura.
 
 Per sostituire la tabella: si riesporta il foglio, si tolgono le righe di
 categoria, si ripuliscono i nomi dal nome scientifico fra parentesi quadre e si
