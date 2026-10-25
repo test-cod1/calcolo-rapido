@@ -266,7 +266,8 @@
         </div>
         <div class="campo campo-largo">
           <label for="deficit-input">Correzione calorica <span class="facolt">(negativa per dimagrire)</span></label>
-          <input type="number" id="deficit-input" step="50" placeholder="es. -500" inputmode="numeric">
+          <!-- Niente inputmode="numeric": quel tastierino ha solo le cifre, senza il meno che qui serve. -->
+          <input type="number" id="deficit-input" step="50" placeholder="es. -500">
         </div>
         <div class="campo campo-largo">
           <label for="gkg-input">Proteine per kg di peso <span class="facolt">(g/kg)</span></label>
